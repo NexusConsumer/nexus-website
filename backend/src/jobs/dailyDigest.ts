@@ -1,0 +1,57 @@
+import { CronJob } from 'cron';
+import { prisma } from '../config/database';
+import { sendDailyDigest } from '../services/email.service';
+import { env } from '../config/env';
+
+export function scheduleDailyDigest(): void {
+  // Run every day at 09:00 Israel time (UTC+2/+3)
+  const job = new CronJob(
+    '0 7 * * *', // 07:00 UTC = 09:00 IL (winter) / 10:00 IL (summer)
+    async () => {
+      try {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        yesterday.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const [visitors, chats, leads, pendingChats] = await Promise.all([
+          prisma.pageView
+            .groupBy({ by: ['visitorId'], where: { createdAt: { gte: yesterday, lt: today } } })
+            .then((r) => r.length),
+          prisma.chatSession.count({ where: { createdAt: { gte: yesterday, lt: today } } }),
+          prisma.lead.count({ where: { createdAt: { gte: yesterday, lt: today } } }),
+          prisma.chatSession.count({ where: { status: 'PENDING_HUMAN' } }),
+        ]);
+
+        const dateStr = yesterday.toLocaleDateString('he-IL', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+
+        // Send to the agent email (extracted from AGENT_WHATSAPP_NUMBER env owner)
+        // In production, configure AGENT_EMAIL separately
+        const agentEmail = process.env.AGENT_EMAIL;
+        if (agentEmail) {
+          await sendDailyDigest(agentEmail, {
+            visitors,
+            chats,
+            leads,
+            pendingChats,
+            date: dateStr,
+          });
+          console.log(`[DailyDigest] Sent: v=${visitors} c=${chats} l=${leads}`);
+        }
+      } catch (err) {
+        console.error('[DailyDigest] Error:', err);
+      }
+    },
+    null,
+    true,
+    'UTC',
+  );
+
+  job.start();
+  console.log('[DailyDigest] Cron job scheduled');
+}

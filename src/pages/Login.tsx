@@ -4,6 +4,7 @@ import GoogleSignIn from '../components/GoogleSignIn';
 import NexusLogo from '../components/NexusLogo';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -19,6 +20,7 @@ export default function Login() {
   });
 
   const { t, language, direction } = useLanguage();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const isHe = language === 'he';
   const homePath = isHe ? '/he' : '/';
@@ -53,22 +55,18 @@ export default function Login() {
 
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      // Simulate random success/failure for demo
-      const isSuccess = Math.random() > 0.5;
-
-      if (isSuccess) {
-        // Success - redirect to dashboard or home
-        console.log('Login successful:', { email, password, rememberMe });
-        navigate(homePath);
-      } else {
-        // Failure - show shake animation
-        setIsLoading(false);
-        setShouldShake(true);
-        setTimeout(() => setShouldShake(false), 900);
+    try {
+      await login(email, password, rememberMe);
+      navigate(homePath);
+    } catch (err: any) {
+      setIsLoading(false);
+      setShouldShake(true);
+      setTimeout(() => setShouldShake(false), 900);
+      // Surface specific error messages when available
+      if (err?.error) {
+        setErrors((prev) => ({ ...prev, password: err.error }));
       }
-    }, 1500);
+    }
   };
 
   return (
@@ -220,11 +218,7 @@ export default function Login() {
 
               {/* Social Sign In */}
               <div className="space-y-3">
-                <GoogleSignIn
-                  onSuccess={(user) => {
-                    console.log('Signed in as:', user);
-                  }}
-                />
+                <GoogleSignIn onSuccess={() => navigate(homePath)} />
 
                 <button
                   type="button"

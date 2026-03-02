@@ -1,0 +1,95 @@
+// ─── Shared API client ────────────────────────────────────────────────────────
+// Access token is stored in memory (never localStorage) for XSS protection.
+// The httpOnly refresh token cookie is sent automatically via `credentials: 'include'`.
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+let _accessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  _accessToken = token;
+}
+
+export function getAccessToken(): string | null {
+  return _accessToken;
+}
+
+// ─── Token refresh ───────────────────────────────────────────────────────────
+
+let _refreshPromise: Promise<boolean> | null = null;
+
+export async function refreshAccessToken(): Promise<boolean> {
+  // Deduplicate concurrent refresh calls
+  if (_refreshPromise) return _refreshPromise;
+  _refreshPromise = _doRefresh();
+  const result = await _refreshPromise;
+  _refreshPromise = null;
+  return result;
+}
+
+async function _doRefresh(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (res.ok) {
+      const data = await res.json();
+      _accessToken = data.accessToken;
+      return true;
+    }
+    _accessToken = null;
+    return false;
+  } catch {
+    _accessToken = null;
+    return false;
+  }
+}
+
+// ─── Core request helper ─────────────────────────────────────────────────────
+
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  retried = false,
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (_accessToken) headers['Authorization'] = `Bearer ${_accessToken}`;
+
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    headers,
+    credentials: 'include',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  // Auto-refresh on 401 then retry once
+  if (res.status === 401 && !retried) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return request<T>(method, path, body, true);
+    throw { error: 'Session expired', status: 401 };
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw { ...err, status: res.status };
+  }
+
+  // Handle empty responses (204 etc.)
+  const text = await res.text();
+  return text ? JSON.parse(text) : ({} as T);
+}
+
+// ─── Public API surface ──────────────────────────────────────────────────────
+
+export const api = {
+  get:    <T>(path: string)              => request<T>('GET',    path),
+  post:   <T>(path: string, body?: unknown) => request<T>('POST',   path, body),
+  put:    <T>(path: string, body?: unknown) => request<T>('PUT',    path, body),
+  patch:  <T>(path: string, body?: unknown) => request<T>('PATCH',  path, body),
+  delete: <T>(path: string)              => request<T>('DELETE', path),
+};
+
+export { API_URL };

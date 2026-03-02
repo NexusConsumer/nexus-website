@@ -4,6 +4,7 @@ import GoogleSignIn from '../components/GoogleSignIn';
 import NexusLogo from '../components/NexusLogo';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const countries = [
   { code: 'US', name: 'United States', nameHe: 'ארצות הברית' },
@@ -51,6 +52,7 @@ export default function Signup() {
   const countryDropdownRef = useRef<HTMLDivElement>(null);
 
   const { t, language, direction } = useLanguage();
+  const { register } = useAuth();
   const navigate = useNavigate();
   const isHe = language === 'he';
   const homePath = isHe ? '/he' : '/';
@@ -157,22 +159,20 @@ export default function Signup() {
 
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      // Simulate random success/failure for demo
-      const isSuccess = Math.random() > 0.5;
-
-      if (isSuccess) {
-        // Success - redirect to dashboard or home
-        console.log('Signup successful:', { email, fullName, password, country });
-        navigate(homePath);
-      } else {
-        // Failure - show shake animation
-        setIsLoading(false);
-        setShouldShake(true);
-        setTimeout(() => setShouldShake(false), 900);
+    try {
+      await register({ email, fullName, password, country, emailUpdates });
+      navigate(homePath);
+    } catch (err: any) {
+      setIsLoading(false);
+      setShouldShake(true);
+      setTimeout(() => setShouldShake(false), 900);
+      // Surface specific field errors when available
+      if (err?.field === 'email') {
+        setErrors((prev) => ({ ...prev, email: err.error || 'Email already in use' }));
+      } else if (err?.error) {
+        setErrors((prev) => ({ ...prev, email: err.error }));
       }
-    }, 1500);
+    }
   };
 
   const getCountryName = (c: typeof countries[0]) => isHe ? c.nameHe : c.name;
@@ -436,11 +436,7 @@ export default function Signup() {
                   </div>
 
                   {/* Google sign up */}
-                  <GoogleSignIn
-                    onSuccess={(user) => {
-                      console.log('Signed in as:', user);
-                    }}
-                  />
+                  <GoogleSignIn onSuccess={() => navigate(homePath)} />
                 </div>
 
                 {/* Already have account */}
