@@ -59,7 +59,7 @@ app.use('/api/payments', paymentsRoutes);
 // __dirname = backend/dist/ → ../public = backend/public/ (Vite output copied there at build time)
 const frontendDist = path.resolve(__dirname, '../public');
 if (existsSync(frontendDist)) {
-  app.use(express.static(frontendDist));
+  app.use(express.static(frontendDist, { redirect: false }));
   // SPA fallback — serve index.html for all non-API client-side routes
   app.get(/^(?!\/api).*/, (_req, res) => {
     res.sendFile(path.join(frontendDist, 'index.html'));
