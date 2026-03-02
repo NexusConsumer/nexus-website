@@ -248,5 +248,6 @@ async function issueTokens(
     rawRefreshToken: rawRefresh,
     refreshTokenId: refreshRecord.id,
     ttlDays,
+    userId,
   };
 }

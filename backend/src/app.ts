@@ -2,6 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import path from 'path';
 import { existsSync } from 'fs';
 import { env } from './config/env';
@@ -18,6 +19,10 @@ import webhookRoutes from './routes/webhook.routes';
 import paymentsRoutes from './routes/payments.routes';
 
 const app = express();
+
+// ─── Compression (gzip/brotli) ───────────────────────────
+// Must be FIRST — compresses all responses including static files and API
+app.use(compression());
 
 // ─── Security headers ────────────────────────────────────
 app.use(helmet());
@@ -59,9 +64,21 @@ app.use('/api/payments', paymentsRoutes);
 // __dirname = backend/dist/ → ../public = backend/public/ (Vite output copied there at build time)
 const frontendDist = path.resolve(__dirname, '../public');
 if (existsSync(frontendDist)) {
-  app.use(express.static(frontendDist, { redirect: false }));
+  // Hashed assets (JS/CSS/images with content-hash in filename) — cache forever
+  app.use(
+    '/assets',
+    express.static(path.join(frontendDist, 'assets'), {
+      redirect: false,
+      maxAge: '1y',
+      immutable: true,
+    }),
+  );
+  // Other static files (favicons, robots.txt, images without hash) — short cache
+  app.use(express.static(frontendDist, { redirect: false, maxAge: '1h' }));
   // SPA fallback — serve index.html for all non-API client-side routes
+  // index.html itself must NOT be cached (it references new hashed assets after deploys)
   app.get(/^(?!\/api).*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 }

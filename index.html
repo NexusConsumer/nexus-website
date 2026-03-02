@@ -6,18 +6,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Nexus - Financial Infrastructure</title>
 
-    <!-- Preload critical assets for faster initial paint -->
-    <link rel="preload" as="image" href="/hero-mockup-en.webp" type="image/webp" />
-    <link rel="preload" as="image" href="/hero-mockup-he.webp" type="image/webp" />
+    <!-- Preload critical LCP image (English home — most common entry) -->
+    <link rel="preload" as="image" href="/hero-mockup-en.webp" type="image/webp" fetchpriority="high" />
 
-    <!-- Optimize font loading -->
+    <!-- Preconnect to font origin before stylesheet fetch -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
-    <!-- DNS prefetch for external resources -->
-    <link rel="dns-prefetch" href="https://unpkg.com" />
-    <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+    <!-- Inter only for initial load — covers 95%+ of non-Hebrew traffic.
+         Rubik (Hebrew) is loaded lazily by HomeHe/LoginHe/SignupHe pages.
+         Reduced weight set: 400/500/600/700 (dropped 800 — rarely used) -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Prefetch Railway backend & CDN origins (improves API TTFB) -->
+    <link rel="dns-prefetch" href="https://nexus-website-production.up.railway.app" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+
+    <!-- topojson: loaded async so it never blocks rendering.
+         The globe component waits for window.topojson to be available. -->
+    <script
+      async
+      src="https://cdn.jsdelivr.net/npm/topojson-client@3"
+      crossorigin="anonymous"
+    ></script>
   </head>
   <body>
     <div id="root"></div>

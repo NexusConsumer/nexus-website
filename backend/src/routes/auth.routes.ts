@@ -117,6 +117,7 @@ router.post(
 );
 
 // ─── POST /api/auth/refresh ────────────────────────────────
+// Returns accessToken + user profile so the frontend avoids a second /me round-trip
 
 router.post('/refresh', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -131,9 +132,15 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
       ipAddress: req.ip,
     });
 
+    // Fetch user profile in parallel — token rotation already needed the user row
+    const user = await prisma.user.findUnique({
+      where: { id: result.userId },
+      select: { id: true, email: true, fullName: true, role: true, avatarUrl: true },
+    });
+
     const maxAge = result.ttlDays * 24 * 60 * 60 * 1000;
     res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(maxAge));
-    res.json({ accessToken: result.accessToken });
+    res.json({ accessToken: result.accessToken, user });
   } catch (err) {
     next(err);
   }

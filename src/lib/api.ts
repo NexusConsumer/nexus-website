@@ -16,9 +16,10 @@ export function getAccessToken(): string | null {
 
 // ─── Token refresh ───────────────────────────────────────────────────────────
 
-let _refreshPromise: Promise<boolean> | null = null;
+interface RefreshResult { user?: unknown }
+let _refreshPromise: Promise<RefreshResult | null> | null = null;
 
-export async function refreshAccessToken(): Promise<boolean> {
+export async function refreshAccessToken(): Promise<RefreshResult | null> {
   // Deduplicate concurrent refresh calls
   if (_refreshPromise) return _refreshPromise;
   _refreshPromise = _doRefresh();
@@ -27,7 +28,7 @@ export async function refreshAccessToken(): Promise<boolean> {
   return result;
 }
 
-async function _doRefresh(): Promise<boolean> {
+async function _doRefresh(): Promise<RefreshResult | null> {
   try {
     const res = await fetch(`${API_URL}/api/auth/refresh`, {
       method: 'POST',
@@ -36,13 +37,14 @@ async function _doRefresh(): Promise<boolean> {
     if (res.ok) {
       const data = await res.json();
       _accessToken = data.accessToken;
-      return true;
+      // Return user profile so AuthContext avoids a second /me round-trip
+      return { user: data.user ?? null };
     }
     _accessToken = null;
-    return false;
+    return null;
   } catch {
     _accessToken = null;
-    return false;
+    return null;
   }
 }
 

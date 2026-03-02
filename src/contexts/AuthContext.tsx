@@ -45,18 +45,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount: attempt to restore session using the httpOnly refresh cookie
+  // On mount: restore session — refresh endpoint now returns user profile
+  // eliminating the second /me round-trip (waterfall → single request)
   useEffect(() => {
     refreshAccessToken()
-      .then(async (ok) => {
-        if (ok) {
-          try {
-            const profile = await api.get<AuthUser>('/api/auth/me');
-            setUser(profile);
-          } catch {
-            setUser(null);
-          }
-        }
+      .then((result) => {
+        if (result && result.user) setUser(result.user as AuthUser);
       })
       .finally(() => setIsLoading(false));
   }, []);

@@ -2,6 +2,28 @@ import OpenAI from 'openai';
 import { prisma } from '../config/database';
 import { env } from '../config/env';
 
+// ─── Simple TTL in-memory cache ───────────────────────────
+// Avoids hitting DB on every AI message for data that rarely changes
+interface CacheEntry<T> { value: T; expiresAt: number }
+class TtlCache<T> {
+  private store = new Map<string, CacheEntry<T>>();
+  get(key: string): T | undefined {
+    const entry = this.store.get(key);
+    if (!entry) return undefined;
+    if (Date.now() > entry.expiresAt) { this.store.delete(key); return undefined; }
+    return entry.value;
+  }
+  set(key: string, value: T, ttlMs: number) {
+    this.store.set(key, { value, expiresAt: Date.now() + ttlMs });
+  }
+  delete(key: string) { this.store.delete(key); }
+}
+
+const promptCache    = new TtlCache<string>();
+const examplesCache  = new TtlCache<Awaited<ReturnType<typeof prisma.aiExample.findMany>>>();
+const PROMPT_TTL_MS  = 5 * 60 * 1000;   // 5 minutes
+const EXAMPLE_TTL_MS = 10 * 60 * 1000;  // 10 minutes
+
 // Lazy init — OpenAI throws at construction if key is empty; use placeholder so module loads
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY ?? 'sk-not-configured' });
 
@@ -56,24 +78,35 @@ async function searchKnowledge(queryEmbedding: number[], limit = 3) {
   return results;
 }
 
-// ─── Get system prompt from DB ────────────────────────────
+// ─── Get system prompt from DB (cached 5 min) ────────────
 
 async function getSystemPrompt(): Promise<string> {
+  const cached = promptCache.get('system_prompt');
+  if (cached !== undefined) return cached;
+
   const config = await prisma.aiConfig.findUnique({ where: { key: 'system_prompt' } });
-  return config?.value ?? DEFAULT_SYSTEM_PROMPT;
+  const value = config?.value ?? DEFAULT_SYSTEM_PROMPT;
+  promptCache.set('system_prompt', value, PROMPT_TTL_MS);
+  return value;
 }
 
-// ─── Few-shot examples ────────────────────────────────────
+// Expose cache invalidation so admin routes can bust it on update
+export function invalidatePromptCache() { promptCache.delete('system_prompt'); }
+
+// ─── Few-shot examples (cached 10 min) ───────────────────
 
 async function getFewShotExamples(category?: string, limit = 2) {
-  return prisma.aiExample.findMany({
-    where: {
-      isActive: true,
-      ...(category && { category }),
-    },
+  const cacheKey = `examples:${category ?? '*'}:${limit}`;
+  const cached = examplesCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const examples = await prisma.aiExample.findMany({
+    where: { isActive: true, ...(category && { category }) },
     take: limit,
     orderBy: { createdAt: 'desc' },
   });
+  examplesCache.set(cacheKey, examples, EXAMPLE_TTL_MS);
+  return examples;
 }
 
 // ─── Detect escalation need ───────────────────────────────

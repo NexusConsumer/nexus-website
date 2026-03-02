@@ -18,32 +18,42 @@ router.get('/metrics', apiLimiter, async (req: Request, res: Response, next: Nex
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const prevSince = new Date(Date.now() - 2 * days * 24 * 60 * 60 * 1000);
 
+    // Use COUNT(DISTINCT) via raw SQL instead of groupBy().length
+    // groupBy returns all rows then counts in memory — wasteful on large tables
     const [
-      currentVisitors, prevVisitors,
+      [{ count: currentVisitors }],
+      [{ count: prevVisitors }],
       currentChats, prevChats,
       currentLeads, prevLeads,
     ] = await Promise.all([
-      prisma.pageView.groupBy({ by: ['visitorId'], where: { createdAt: { gte: since } } }).then(r => r.length),
-      prisma.pageView.groupBy({ by: ['visitorId'], where: { createdAt: { gte: prevSince, lt: since } } }).then(r => r.length),
+      prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(DISTINCT "visitorId")::int AS count FROM "PageView"
+        WHERE "createdAt" >= ${since}`,
+      prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(DISTINCT "visitorId")::int AS count FROM "PageView"
+        WHERE "createdAt" >= ${prevSince} AND "createdAt" < ${since}`,
       prisma.chatSession.count({ where: { createdAt: { gte: since } } }),
       prisma.chatSession.count({ where: { createdAt: { gte: prevSince, lt: since } } }),
       prisma.lead.count({ where: { createdAt: { gte: since } } }),
       prisma.lead.count({ where: { createdAt: { gte: prevSince, lt: since } } }),
     ]);
 
+    const cv = Number(currentVisitors);
+    const pv = Number(prevVisitors);
+
     const pct = (curr: number, prev: number) =>
       prev === 0 ? null : Math.round(((curr - prev) / prev) * 100);
 
-    const conversionRate = currentVisitors > 0
-      ? Math.round((currentLeads / currentVisitors) * 1000) / 10
+    const conversionRate = cv > 0
+      ? Math.round((currentLeads / cv) * 1000) / 10
       : 0;
 
     res.json({
       period,
-      visitors:   { value: currentVisitors,  change: pct(currentVisitors, prevVisitors) },
-      chats:      { value: currentChats,      change: pct(currentChats, prevChats) },
-      leads:      { value: currentLeads,      change: pct(currentLeads, prevLeads) },
-      conversion: { value: conversionRate,    unit: '%' },
+      visitors:   { value: cv,           change: pct(cv, pv) },
+      chats:      { value: currentChats,  change: pct(currentChats, prevChats) },
+      leads:      { value: currentLeads,  change: pct(currentLeads, prevLeads) },
+      conversion: { value: conversionRate, unit: '%' },
     });
   } catch (err) {
     next(err);
@@ -54,30 +64,51 @@ router.get('/metrics', apiLimiter, async (req: Request, res: Response, next: Nex
 
 router.get('/chart', apiLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const days = Number(req.query.days) || 7;
-    const points: Array<{ date: string; visitors: number; chats: number; leads: number }> = [];
+    const days = Math.min(Number(req.query.days) || 7, 90); // cap at 90 days
 
+    const since = new Date();
+    since.setDate(since.getDate() - (days - 1));
+    since.setHours(0, 0, 0, 0);
+
+    // Fetch ALL data in 3 queries total (not 3×days queries in a loop)
+    const [pageViewRows, chatRows, leadRows] = await Promise.all([
+      // Unique visitors per day via COUNT(DISTINCT) grouped by date
+      prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+        SELECT DATE("createdAt") AS day, COUNT(DISTINCT "visitorId")::int AS count
+        FROM "PageView"
+        WHERE "createdAt" >= ${since}
+        GROUP BY DATE("createdAt")
+        ORDER BY day ASC`,
+      prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+        SELECT DATE("createdAt") AS day, COUNT(*)::int AS count
+        FROM "ChatSession"
+        WHERE "createdAt" >= ${since}
+        GROUP BY DATE("createdAt")
+        ORDER BY day ASC`,
+      prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+        SELECT DATE("createdAt") AS day, COUNT(*)::int AS count
+        FROM "Lead"
+        WHERE "createdAt" >= ${since}
+        GROUP BY DATE("createdAt")
+        ORDER BY day ASC`,
+    ]);
+
+    // Build lookup maps for O(1) access
+    const pvMap = new Map(pageViewRows.map(r => [String(r.day).slice(0, 10), Number(r.count)]));
+    const chatMap = new Map(chatRows.map(r => [String(r.day).slice(0, 10), Number(r.count)]));
+    const leadMap = new Map(leadRows.map(r => [String(r.day).slice(0, 10), Number(r.count)]));
+
+    // Build response array filling in zeros for days with no data
+    const points = [];
     for (let i = days - 1; i >= 0; i--) {
-      const dayStart = new Date();
-      dayStart.setDate(dayStart.getDate() - i);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setHours(23, 59, 59, 999);
-
-      const [visitors, chats, leads] = await Promise.all([
-        prisma.pageView.groupBy({
-          by: ['visitorId'],
-          where: { createdAt: { gte: dayStart, lte: dayEnd } },
-        }).then(r => r.length),
-        prisma.chatSession.count({ where: { createdAt: { gte: dayStart, lte: dayEnd } } }),
-        prisma.lead.count({ where: { createdAt: { gte: dayStart, lte: dayEnd } } }),
-      ]);
-
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
       points.push({
-        date: dayStart.toISOString().split('T')[0],
-        visitors,
-        chats,
-        leads,
+        date:     key,
+        visitors: pvMap.get(key)   ?? 0,
+        chats:    chatMap.get(key) ?? 0,
+        leads:    leadMap.get(key) ?? 0,
       });
     }
 
@@ -91,23 +122,48 @@ router.get('/chart', apiLimiter, async (req: Request, res: Response, next: NextF
 
 router.get('/visitors', apiLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const limit = Number(req.query.limit) || 20;
-    const profiles = await prisma.visitorProfile.findMany({
-      orderBy: { lastSeen: 'desc' },
-      take: limit,
-    });
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
 
-    // Enrich with last page visited
-    const enriched = await Promise.all(
-      profiles.map(async (p) => {
-        const lastView = await prisma.pageView.findFirst({
-          where: { visitorId: p.visitorId },
-          orderBy: { createdAt: 'desc' },
-          select: { page: true, createdAt: true },
-        });
-        return { ...p, lastPage: lastView?.page, lastPageAt: lastView?.createdAt };
-      }),
-    );
+    // Single query: join VisitorProfile with last PageView per visitor
+    // Replaces N+1 pattern (1 + N queries → 1 query)
+    const enriched = await prisma.$queryRaw<
+      Array<{
+        visitorId: string;
+        ip: string | null;
+        city: string | null;
+        country: string | null;
+        device: string | null;
+        browser: string | null;
+        firstSeen: Date;
+        lastSeen: Date;
+        pageViews: number;
+        lastPage: string | null;
+        lastPageAt: Date | null;
+      }>
+    >`
+      SELECT
+        vp."visitorId",
+        vp."ip",
+        vp."city",
+        vp."country",
+        vp."device",
+        vp."browser",
+        vp."firstSeen",
+        vp."lastSeen",
+        vp."pageViews",
+        lp.page    AS "lastPage",
+        lp."createdAt" AS "lastPageAt"
+      FROM "VisitorProfile" vp
+      LEFT JOIN LATERAL (
+        SELECT page, "createdAt"
+        FROM "PageView"
+        WHERE "visitorId" = vp."visitorId"
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      ) lp ON TRUE
+      ORDER BY vp."lastSeen" DESC
+      LIMIT ${limit}
+    `;
 
     res.json(enriched);
   } catch (err) {
