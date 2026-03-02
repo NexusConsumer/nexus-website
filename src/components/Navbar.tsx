@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, Menu, X, ArrowRight, CreditCard, Link as LinkIcon, ShoppingCart, Layers, Receipt, BarChart3, Scale, TrendingUp, Building2, Globe, Wallet, Bitcoin, Network, FileText, HelpCircle, AppWindow, Users, Store, Briefcase, Code, Book, Terminal, Newspaper, GraduationCap, MessageSquare, Youtube } from 'lucide-react';
+import { ChevronDown, Menu, X, ArrowRight, CreditCard, Link as LinkIcon, ShoppingCart, Layers, Receipt, BarChart3, Scale, TrendingUp, Building2, Globe, Wallet, Bitcoin, Network, FileText, HelpCircle, AppWindow, Users, Store, Briefcase, Code, Book, Terminal, Newspaper, GraduationCap, MessageSquare, Youtube, Gift, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import NexusLogo from './NexusLogo';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -22,10 +22,9 @@ const getNavItems = (t: any, lang: 'en' | 'he') => [
         {
           title: t.navbar.revenue,
           items: [
-            { name: t.navbar.billingTitle, desc: t.navbar.subscriptionManagement, icon: Receipt },
-            { name: t.navbar.invoicingTitle, desc: t.navbar.oneTimeRecurring, icon: BarChart3 },
-            { name: t.navbar.taxTitle, desc: t.navbar.salesTaxVAT, icon: Scale },
-            { name: t.navbar.sigmaTitle, desc: t.navbar.customReports, icon: TrendingUp },
+            { name: t.navbar.loyaltyPartnerships, desc: t.navbar.loyaltyPartnershipsDesc, icon: Gift },
+            { name: t.navbar.loyaltyClub, desc: t.navbar.loyaltyClubDesc, icon: Users },
+            { name: t.navbar.giftsWelfare, desc: t.navbar.giftsWelfareDesc, icon: Heart },
           ],
         },
         {
@@ -153,7 +152,7 @@ const getNavItems = (t: any, lang: 'en' | 'he') => [
         cta: t.navbar.exploreTools,
       },
       bottomLinks: [
-        { label: t.navbar.apiDocumentation, icon: FileText },
+        { label: t.navbar.apiDocumentation, icon: FileText, href: 'https://nexus-api-docs-production.up.railway.app/' },
         { label: t.navbar.developerCommunity, icon: Users },
       ],
     },
@@ -405,14 +404,13 @@ export default function Navbar() {
 
     <nav className="absolute top-0 left-0 right-0 z-[100]">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between" style={{ direction }}>
-        {/* Logo and Nav */}
-        <div className="flex items-center gap-4">
-          <Link to={language === 'he' ? '/he' : '/'} className="flex items-center translate-y-1">
-            <NexusLogo height={55} page="navbar" />
-          </Link>
+        {/* Logo */}
+        <Link to={language === 'he' ? '/he' : '/'} className="flex items-center translate-y-1 flex-shrink-0">
+          <NexusLogo height={55} page="navbar" />
+        </Link>
 
-          {/* Desktop Nav */}
-          <div className="hidden lg:flex items-center gap-1" style={{ marginTop: '2px' }}>
+        {/* Desktop Nav */}
+        <div className="hidden lg:flex items-center gap-1" style={{ marginTop: '2px' }}>
           {navItems.map((item) => (
             <div
               key={item.label}
@@ -565,7 +563,9 @@ export default function Navbar() {
                         return (
                           <a
                             key={link.label}
-                            href="#"
+                            href={(link as any).href || '#'}
+                            target={(link as any).href ? '_blank' : undefined}
+                            rel={(link as any).href ? 'noopener noreferrer' : undefined}
                             className="group text-sm font-semibold text-slate-600 hover:text-stripe-purple flex items-center gap-2 transition-colors"
                           >
                             <Icon size={18} />
@@ -583,7 +583,6 @@ export default function Navbar() {
               )}
             </div>
           ))}
-          </div>
         </div>
 
         {/* Desktop CTA */}

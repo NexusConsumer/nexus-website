@@ -32,6 +32,9 @@
       src="https://cdn.jsdelivr.net/npm/topojson-client@3"
       crossorigin="anonymous"
     ></script>
+
+    <!-- Prevent dark flash before CSS loads -->
+    <style>html, body, #root { background: #ffffff; }</style>
   </head>
   <body>
     <div id="root"></div>

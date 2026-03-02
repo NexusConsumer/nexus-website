@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -59,13 +59,43 @@ export default function HomeContent() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const { t, direction, language } = useLanguage();
 
+  // Scroll-reveal: observe all .scroll-reveal elements, including lazily mounted ones
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+    );
+
+    const observeAll = () => {
+      document.querySelectorAll('.scroll-reveal:not(.revealed)').forEach((el) => observer.observe(el));
+    };
+
+    observeAll();
+
+    // Re-run when lazy-loaded sections mount
+    const mutationObserver = new MutationObserver(observeAll);
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, []);
+
   return (
     <div className="min-h-screen overflow-x-hidden">
       <Navbar />
       <Hero />
 
       {/* Partner Logos Row */}
-      <section className="relative z-0 bg-white py-10 md:py-40 border-b border-slate-200 overflow-hidden -mt-28 md:mt-0 mobile-logos-clip">
+      <section className="scroll-reveal relative z-0 bg-white py-10 md:py-40 border-b border-slate-200 overflow-hidden -mt-28 md:mt-0 mobile-logos-clip">
         {/* Vertical Grid Lines Background */}
         <div className="absolute inset-0 z-0 flex justify-center pointer-events-none opacity-30 overflow-hidden">
           <div className="flex space-x-24 h-full max-w-full">
@@ -138,7 +168,7 @@ export default function HomeContent() {
       </Suspense>
 
       {/* Gray section with partner ecosystem */}
-      <section className="relative pt-0 pb-8 overflow-hidden">
+      <section className="scroll-reveal relative pt-0 pb-8 overflow-hidden">
         {/* Diagonal background */}
         <div
           className="absolute inset-0 bg-slate-100"
@@ -206,7 +236,7 @@ export default function HomeContent() {
       </Suspense>
 
       {/* White section before footer */}
-      <section className="py-32 bg-white">
+      <section className="scroll-reveal py-32 bg-white">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-4xl lg:text-6xl font-bold text-slate-900 tracking-tight mb-6">
             {t.cta.title}
