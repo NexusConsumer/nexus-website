@@ -19,6 +19,7 @@ import webhookRoutes from './routes/webhook.routes';
 import paymentsRoutes from './routes/payments.routes';
 
 const app = express();
+ app.set('trust proxy', 1);
 
 // ─── Compression (gzip/brotli) ───────────────────────────
 // Must be FIRST — compresses all responses including static files and API
