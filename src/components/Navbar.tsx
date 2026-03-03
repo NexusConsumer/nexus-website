@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useEffect } from 'react';
 import { ChevronDown, Menu, X, ArrowRight, CreditCard, Link as LinkIcon, ShoppingCart, Layers, Receipt, BarChart3, Scale, TrendingUp, Building2, Globe, Wallet, Bitcoin, Network, FileText, HelpCircle, AppWindow, Users, Store, Briefcase, Code, Book, Terminal, Newspaper, GraduationCap, MessageSquare, Youtube, Gift, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import NexusLogo from './NexusLogo';
 import { useLanguage } from '../i18n/LanguageContext';
+import { createPortal } from 'react-dom';
 
 // Function to get nav items with translations
 const getNavItems = (t: any, lang: 'en' | 'he') => [
@@ -210,12 +210,9 @@ const getNavItems = (t: any, lang: 'en' | 'he') => [
   { label: t.navbar.pricing, href: '#pricing' },
 ];
 
-// MegaMenuPanel: rendered via createPortal directly into document.body, completely
-// outside the nav DOM tree. This eliminates any CSS containing-block interference
-// from the nav's position:fixed or any ancestor overflow/transform.
-//
-// Fade-in uses getBoundingClientRect() to force a synchronous reflow, guaranteeing
-// the browser has painted opacity:0 before the transition to opacity:1 starts.
+// MegaMenuPanel: renders via portal so position:fixed is never affected by nav's
+// stacking context. Uses rAF to guarantee opacity:0 is painted BEFORE transitioning
+// to opacity:1 — this is the only reliable way to prevent a first-frame flash/jump.
 function MegaMenuPanel({
   direction,
   onMouseEnter,
@@ -227,32 +224,23 @@ function MegaMenuPanel({
   onMouseLeave: React.MouseEventHandler<HTMLDivElement>;
   children: React.ReactNode;
 }) {
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const el = panelRef.current;
-    if (!el) return;
-    // getBoundingClientRect() forces a synchronous reflow, ensuring the browser
-    // has committed the initial opacity:0 / translateY(-6px) before we change them.
-    el.getBoundingClientRect();
-    el.style.opacity = '1';
-    el.style.transform = 'translateY(0)';
-    el.style.pointerEvents = 'auto';
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
   }, []);
 
   return createPortal(
     <div
-      ref={panelRef}
-      className="mega-menu-panel fixed left-0 right-0 top-12 px-6 z-[99] pt-4"
+      className="mega-menu-portal fixed left-0 right-0 top-12 px-6 z-[99] pt-4"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{
         direction,
-        opacity: 0,
-        transform: 'translateY(-6px)',
-        transition: 'opacity 0.18s ease-out, transform 0.18s ease-out',
-        pointerEvents: 'none',
-        willChange: 'opacity, transform',
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(-10px)',
+        transition: 'opacity 0.2s ease-out, transform 0.2s ease-out',
       }}
     >
       {children}
@@ -272,6 +260,7 @@ export default function Navbar() {
   const [closeTimer, setCloseTimer] = useState<NodeJS.Timeout | null>(null);
   const [stabilizeTimer, setStabilizeTimer] = useState<NodeJS.Timeout | null>(null);
   const [hoveredColumn, setHoveredColumn] = useState<number | null>(null);
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
   const [isLocked, setIsLocked] = useState(false);
   const [isStabilizing, setIsStabilizing] = useState(false);
   const [justUnlocked, setJustUnlocked] = useState(false);
@@ -298,9 +287,29 @@ export default function Navbar() {
       return;
     }
 
+    // Track if we should calculate slide direction
+    let shouldCalculateSlide = !isLocked;
+
     // If locked but hovering a different menu, unlock and switch
     if (isLocked && openDropdown && openDropdown !== label) {
       setIsLocked(false);
+      shouldCalculateSlide = true; // We're unlocking, so calculate slide
+    }
+
+    // Determine slide direction based on menu order (only if not locked)
+    if (shouldCalculateSlide) {
+      const menuOrder = navItems.map(item => item.label);
+      const currentIndex = menuOrder.indexOf(label);
+      const previousIndex = openDropdown ? menuOrder.indexOf(openDropdown) : -1;
+
+      if (previousIndex !== -1 && currentIndex !== previousIndex && openDropdown !== null) {
+        // Mouse moving right = menu slides in from left
+        // Mouse moving left = menu slides in from right
+        const direction = currentIndex > previousIndex ? 'left' : 'right';
+        setSlideDirection(direction);
+      } else {
+        setSlideDirection(null);
+      }
     }
 
     // If opening a new menu (not switching), add stabilization period
@@ -312,7 +321,7 @@ export default function Navbar() {
       const timer = setTimeout(() => {
         setIsStabilizing(false);
         setStabilizeTimer(null);
-      }, 220); // covers full animation duration (200ms) + small buffer
+      }, 150);
       setStabilizeTimer(timer);
     }
 
@@ -326,7 +335,8 @@ export default function Navbar() {
     const timer = setTimeout(() => {
       setOpenDropdown(null);
       setHoveredColumn(null);
-    }, 300);
+      setSlideDirection(null);
+    }, 300); // Increased from 100ms to 300ms
     setCloseTimer(timer);
   };
 
@@ -365,7 +375,7 @@ export default function Navbar() {
       if (isLocked && openDropdown) {
         const target = e.target as HTMLElement;
         // Check if click is outside the navbar and mega menu
-        if (!target.closest('nav') && !target.closest('.mega-menu-panel')) {
+        if (!target.closest('nav') && !target.closest('.mega-menu-portal')) {
           setIsLocked(false);
           setOpenDropdown(null);
         }
@@ -432,7 +442,7 @@ export default function Navbar() {
       </div>
     )}
 
-    <nav className="fixed top-0 left-0 right-0 z-[100]">
+    <nav className="absolute top-0 left-0 right-0 z-[100]">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between" style={{ direction }}>
         {/* Logo */}
         <Link to={language === 'he' ? '/he' : '/'} className="flex items-center translate-y-1 flex-shrink-0">
@@ -477,7 +487,7 @@ export default function Navbar() {
               {/* Mega Menu */}
               {item.megaMenu && openDropdown === item.label && (
                 <MegaMenuPanel
-                  key={item.label}
+                  key={`${item.label}-${slideDirection || 'initial'}`}
                   direction={direction}
                   onMouseEnter={(e) => {
                     e.stopPropagation();
