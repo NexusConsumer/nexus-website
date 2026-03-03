@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, Menu, X, ArrowRight, CreditCard, Link as LinkIcon, ShoppingCart, Layers, Receipt, BarChart3, Scale, TrendingUp, Building2, Globe, Wallet, Bitcoin, Network, FileText, HelpCircle, AppWindow, Users, Store, Briefcase, Code, Book, Terminal, Newspaper, GraduationCap, MessageSquare, Youtube, Gift, Heart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import NexusLogo from './NexusLogo';
@@ -209,10 +210,12 @@ const getNavItems = (t: any, lang: 'en' | 'he') => [
   { label: t.navbar.pricing, href: '#pricing' },
 ];
 
-// MegaMenuPanel: mounts at opacity:0, rAF flips to opacity:1 via CSS transition.
-// This guarantees the element is NEVER seen at its natural (un-animated) state,
-// eliminating the starting-position jump caused by React applying `animation` via
-// the style prop only AFTER the first paint.
+// MegaMenuPanel: rendered via createPortal directly into document.body, completely
+// outside the nav DOM tree. This eliminates any CSS containing-block interference
+// from the nav's position:fixed or any ancestor overflow/transform.
+//
+// Fade-in uses getBoundingClientRect() to force a synchronous reflow, guaranteeing
+// the browser has painted opacity:0 before the transition to opacity:1 starts.
 function MegaMenuPanel({
   direction,
   onMouseEnter,
@@ -224,36 +227,37 @@ function MegaMenuPanel({
   onMouseLeave: React.MouseEventHandler<HTMLDivElement>;
   children: React.ReactNode;
 }) {
-  const [visible, setVisible] = useState(false);
-  const rafRef = useRef<number | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Double rAF: the first rAF fires before the first paint (browser may not
-    // have actually painted opacity:0 yet). The second rAF fires before the
-    // SECOND paint, guaranteeing the opacity:0 frame was committed to screen
-    // before we flip to opacity:1.
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = requestAnimationFrame(() => setVisible(true));
-    });
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
+    const el = panelRef.current;
+    if (!el) return;
+    // getBoundingClientRect() forces a synchronous reflow, ensuring the browser
+    // has committed the initial opacity:0 / translateY(-6px) before we change them.
+    el.getBoundingClientRect();
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+    el.style.pointerEvents = 'auto';
   }, []);
 
-  return (
+  return createPortal(
     <div
-      className="fixed left-0 right-0 top-12 px-6 z-50 pt-4"
+      ref={panelRef}
+      className="mega-menu-panel fixed left-0 right-0 top-12 px-6 z-[99] pt-4"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{
         direction,
-        opacity: visible ? 1 : 0,
-        transition: 'opacity 0.15s ease-out',
-        pointerEvents: visible ? 'auto' : 'none',
+        opacity: 0,
+        transform: 'translateY(-6px)',
+        transition: 'opacity 0.18s ease-out, transform 0.18s ease-out',
+        pointerEvents: 'none',
+        willChange: 'opacity, transform',
       }}
     >
       {children}
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -361,7 +365,7 @@ export default function Navbar() {
       if (isLocked && openDropdown) {
         const target = e.target as HTMLElement;
         // Check if click is outside the navbar and mega menu
-        if (!target.closest('nav')) {
+        if (!target.closest('nav') && !target.closest('.mega-menu-panel')) {
           setIsLocked(false);
           setOpenDropdown(null);
         }
