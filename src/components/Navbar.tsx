@@ -210,38 +210,36 @@ const getNavItems = (t: any, lang: 'en' | 'he') => [
   { label: t.navbar.pricing, href: '#pricing' },
 ];
 
-// MegaMenuPanel: renders via portal so position:fixed is never affected by nav's
-// stacking context. Uses rAF to guarantee opacity:0 is painted BEFORE transitioning
-// to opacity:1 — this is the only reliable way to prevent a first-frame flash/jump.
+// MegaMenuPanel: portal into document.body (eliminates nav stacking-context interference).
+// Pure CSS animation with animation-fill-mode:both — the browser applies the "from" keyframe
+// state (opacity:0) before the very first paint, so there is never a visible flash or jump.
+// No translateY means no vertical position shift that could be perceived as a jump.
 function MegaMenuPanel({
   direction,
+  slideDirection,
   onMouseEnter,
   onMouseLeave,
   children,
 }: {
   direction: string;
+  slideDirection?: 'left' | 'right' | null;
   onMouseEnter: React.MouseEventHandler<HTMLDivElement>;
   onMouseLeave: React.MouseEventHandler<HTMLDivElement>;
   children: React.ReactNode;
 }) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const id = requestAnimationFrame(() => setVisible(true));
-    return () => cancelAnimationFrame(id);
-  }, []);
+  const animClass =
+    slideDirection === 'left'
+      ? 'mega-menu-enter-left'
+      : slideDirection === 'right'
+      ? 'mega-menu-enter-right'
+      : 'mega-menu-enter';
 
   return createPortal(
     <div
-      className="mega-menu-portal fixed left-0 right-0 top-12 px-6 z-[99] pt-4"
+      className={`mega-menu-portal ${animClass} fixed left-0 right-0 top-12 px-6 z-[99] pt-4`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      style={{
-        direction,
-        opacity: visible ? 1 : 0,
-        transform: visible ? 'translateY(0)' : 'translateY(-10px)',
-        transition: 'opacity 0.2s ease-out, transform 0.2s ease-out',
-      }}
+      style={{ direction }}
     >
       {children}
     </div>,
@@ -489,6 +487,7 @@ export default function Navbar() {
                 <MegaMenuPanel
                   key={`${item.label}-${slideDirection || 'initial'}`}
                   direction={direction}
+                  slideDirection={slideDirection}
                   onMouseEnter={(e) => {
                     e.stopPropagation();
                     handleMouseEnter(item.label);

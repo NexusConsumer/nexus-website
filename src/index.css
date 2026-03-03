@@ -129,6 +129,21 @@ body {
   }
 }
 
+/* Mega Menu Entry Animations
+   animation-fill-mode:both = "backwards" (opacity:0 applied BEFORE animation starts,
+   guaranteeing the element is invisible on its very first painted frame) + "forwards"
+   (hold opacity:1 after animation ends). Zero JS timing — no rAF race condition.
+   No translateY so there is no vertical jump. */
+.mega-menu-enter {
+  animation: fadeIn 0.18s ease-out both;
+}
+.mega-menu-enter-left {
+  animation: slideInLeft 0.18s ease-out both;
+}
+.mega-menu-enter-right {
+  animation: slideInRight 0.18s ease-out both;
+}
+
 /* Float animation for global money movement */
 @keyframes float {
   0%, 100% {
