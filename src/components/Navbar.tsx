@@ -256,15 +256,19 @@ export default function Navbar() {
       shouldCalculateSlide = true; // We're unlocking, so calculate slide
     }
 
-    // Determine slide direction based on menu order (only if not locked)
-    if (shouldCalculateSlide) {
+    // Determine slide direction only when switching to a DIFFERENT menu.
+    // Guarding with openDropdown !== label prevents the common case where the
+    // mouse moves from the nav button into the mega menu panel (which fires
+    // onMouseEnter again for the same label). Without this guard,
+    // setSlideDirection(null) would fire, changing the key and causing React to
+    // unmount+remount the mega menu mid-hover — the visible "jump".
+    if (shouldCalculateSlide && openDropdown !== label) {
       const menuOrder = navItems.map(item => item.label);
       const currentIndex = menuOrder.indexOf(label);
       const previousIndex = openDropdown ? menuOrder.indexOf(openDropdown) : -1;
 
-      if (previousIndex !== -1 && currentIndex !== previousIndex && openDropdown !== null) {
-        // Mouse moving right = menu slides in from left
-        // Mouse moving left = menu slides in from right
+      if (previousIndex !== -1 && currentIndex !== previousIndex) {
+        // Mouse moving right → menu slides in from left, and vice-versa
         const direction = currentIndex > previousIndex ? 'left' : 'right';
         setSlideDirection(direction);
       } else {
@@ -447,7 +451,7 @@ export default function Navbar() {
               {/* Mega Menu */}
               {item.megaMenu && openDropdown === item.label && (
                 <div
-                  key={`${item.label}-${slideDirection || 'initial'}`}
+                  key={item.label}
                   className="fixed left-0 right-0 top-12 px-6 z-50 pt-4"
                   onMouseEnter={(e) => {
                     e.stopPropagation();
