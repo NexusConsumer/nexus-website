@@ -18,16 +18,16 @@ export default function GoogleSignIn({ onSuccess, onError, variant = 'form' }: G
   const isHe = language === 'he';
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleGoogleLogin = useGoogleLogin({
+ const handleGoogleLogin = useGoogleLogin({
     flow: 'auth-code',
     onSuccess: async (codeResponse) => {
+      console.log('Google success:', codeResponse);
       try {
         setIsLoading(true);
         await googleLogin(codeResponse.code);
         if (onSuccess) {
           onSuccess();
         } else {
-          // Default: go to home
           navigate(isHe ? '/he' : '/');
         }
       } catch (err) {
@@ -37,11 +37,14 @@ export default function GoogleSignIn({ onSuccess, onError, variant = 'form' }: G
         setIsLoading(false);
       }
     },
-    onError: () => {
+    onError: (err) => {
+      console.error('Google onError:', err);
       onError?.();
     },
+    onNonOAuthError: (err) => {
+      console.error('Google nonOAuthError:', err);
+    },
   });
-
   const buttonStyles =
     variant === 'hero'
       ? 'inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-3.5 sm:py-4 border border-gray-300 rounded-lg shadow-sm bg-white text-xs sm:text-sm font-bold text-stripe-dark hover:bg-gray-50 hover:border-stripe-purple transition-colors whitespace-nowrap disabled:opacity-60'
