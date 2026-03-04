@@ -1,7 +1,4 @@
-import { useGoogleLogin } from '@react-oauth/google';
 import { useLanguage } from '../i18n/LanguageContext';
-import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
 interface GoogleSignInProps {
@@ -10,40 +7,20 @@ interface GoogleSignInProps {
   onError?: () => void;
 }
 
-export default function GoogleSignIn({ onSuccess, onError, variant = 'form' }: GoogleSignInProps) {
-  const { t, language } = useLanguage();
-  const { googleLogin } = useAuth();
-  const navigate = useNavigate();
-  const isHe = language === 'he';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '';
+const REDIRECT_URI = window.location.origin;
+
+export default function GoogleSignIn({ variant = 'form' }: GoogleSignInProps) {
+  const { t } = useLanguage();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleGoogleLogin = useGoogleLogin({
-    flow: 'implicit',
-    onSuccess: async (tokenResponse) => {
-      console.log('Google success:', tokenResponse);
-      try {
-        setIsLoading(true);
-        await googleLogin(tokenResponse.access_token);
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          navigate(isHe ? '/he' : '/');
-        }
-      } catch (err) {
-        console.error('Google login failed:', err);
-        onError?.();
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    onError: (err) => {
-      console.error('Google onError:', err);
-      onError?.();
-    },
-    onNonOAuthError: (err) => {
-      console.error('Google nonOAuthError:', err);
-    },
-  });
+  const handleGoogleLogin = () => {
+    setIsLoading(true);
+    const scope = encodeURIComponent('email profile');
+    const redirectUri = encodeURIComponent(REDIRECT_URI);
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+    window.location.href = url;
+  };
 
   const buttonStyles =
     variant === 'hero'
@@ -52,7 +29,7 @@ export default function GoogleSignIn({ onSuccess, onError, variant = 'form' }: G
 
   return (
     <button
-      onClick={() => handleGoogleLogin()}
+      onClick={handleGoogleLogin}
       disabled={isLoading}
       className={buttonStyles}
     >

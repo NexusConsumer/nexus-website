@@ -39,20 +39,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const googleLogin = useCallback(async (accessToken: string) => {
+    const data = await api.post<{ accessToken: string }>('/api/auth/google', { accessToken });
+    setAccessToken(data.accessToken);
+    const profile = await api.get<AuthUser>('/api/auth/me');
+    setUser(profile);
+  }, []);
+
   useEffect(() => {
+    // Check for Google OAuth redirect callback
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.substring(1));
+      const accessToken = params.get('access_token');
+      if (accessToken) {
+        // Clean the URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setIsLoading(true);
+        googleLogin(accessToken)
+          .catch(console.error)
+          .finally(() => setIsLoading(false));
+        return;
+      }
+    }
+
+    // Normal session restore
     refreshAccessToken()
       .then((result) => {
         if (result && result.user) setUser(result.user as AuthUser);
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [googleLogin]);
 
   const login = useCallback(async (email: string, password: string, rememberMe = false) => {
-    const data = await api.post<{ accessToken: string }>('/api/auth/login', {
-      email,
-      password,
-      rememberMe,
-    });
+    const data = await api.post<{ accessToken: string }>('/api/auth/login', { email, password, rememberMe });
     setAccessToken(data.accessToken);
     const profile = await api.get<AuthUser>('/api/auth/me');
     setUser(profile);
@@ -60,13 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (registerData: RegisterData) => {
     const data = await api.post<{ accessToken: string }>('/api/auth/register', registerData);
-    setAccessToken(data.accessToken);
-    const profile = await api.get<AuthUser>('/api/auth/me');
-    setUser(profile);
-  }, []);
-
-  const googleLogin = useCallback(async (accessToken: string) => {
-    const data = await api.post<{ accessToken: string }>('/api/auth/google', { accessToken });
     setAccessToken(data.accessToken);
     const profile = await api.get<AuthUser>('/api/auth/me');
     setUser(profile);
