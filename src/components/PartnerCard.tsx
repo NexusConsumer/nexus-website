@@ -29,7 +29,7 @@ export default function PartnerCard({ partner, isLoggedIn }: PartnerCardProps) {
         <img
           src={partner.thumbnailUrl}
           alt={partner.title}
-          className="max-h-16 max-w-[80%] object-contain"
+          className="max-h-28 max-w-[85%] object-contain"
           loading="lazy"
           onError={(e) => {
             (e.target as HTMLImageElement).style.opacity = '0';
