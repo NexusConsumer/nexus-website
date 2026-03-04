@@ -80,12 +80,38 @@ export default function WorkspaceSetupPage() {
       <style>{`
         .ws-modal {
           background: #ffffff;
-          border-radius: 20px;
-          padding: 2rem;
+          border-radius: 12px;
           width: 100%;
-          max-width: 440px;
-          box-shadow: 0 32px 64px -12px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+          max-width: 680px;
+          min-height: 520px;
+          max-height: 88vh;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          box-shadow: 0 32px 64px -12px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06);
           animation: wsIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .ws-content {
+          flex: 1;
+          overflow-y: auto;
+          padding: 2.5rem 3rem;
+        }
+        .ws-footer {
+          border-top: 1px solid #f1f5f9;
+          padding: 1rem 2rem;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 0.75rem;
+          flex-shrink: 0;
+        }
+        .ws-footer-between {
+          border-top: 1px solid #f1f5f9;
+          padding: 1rem 2rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-shrink: 0;
         }
         @keyframes wsIn {
           from { opacity: 0; transform: translateY(20px) scale(0.97); }

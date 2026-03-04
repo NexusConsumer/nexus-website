@@ -1,49 +1,67 @@
+import nexusBlackLogo from '../../assets/logos/nexus-logo-black.png';
+
 interface WelcomeModalProps {
   onStart: () => void;
   onBack: () => void;
 }
 
+const TOTAL_STEPS = 4;
+
 export default function WelcomeModal({ onStart, onBack }: WelcomeModalProps) {
   return (
     <div className="ws-modal">
-      {/* Nexus icon */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-11 h-11 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-          </svg>
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-8 py-5 border-b border-slate-100 shrink-0">
+        <img src={nexusBlackLogo} alt="Nexus" className="h-8 w-auto object-contain" />
+        {/* Progress: 0 / TOTAL_STEPS filled (welcome is before the wizard) */}
+        <div className="flex gap-1.5">
+          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+            <div key={i} className="w-10 h-[3px] rounded-full bg-slate-200" />
+          ))}
         </div>
-        <span className="text-[15px] font-bold text-gray-900 tracking-tight">Nexus</span>
       </div>
 
-      <h1 className="text-[26px] font-bold text-gray-900 mb-3 leading-tight">
-        Welcome to Nexus
-      </h1>
+      {/* ── Content ── */}
+      <div className="ws-content">
+        <p className="text-[22px] leading-snug text-slate-800 mb-6">
+          <span className="font-bold text-indigo-600">Welcome to Nexus.</span>{' '}
+          Answer a few questions about your organization to customize your workspace.
+          You can always change this later.
+        </p>
 
-      <p className="text-[14px] text-gray-500 leading-relaxed mb-2">
-        We're setting up your workspace. To configure the environment properly we need a few quick details about your organization.
-      </p>
-      <p className="text-[13px] text-gray-400 mb-9">
-        This takes less than a minute.
-      </p>
+        <ul className="space-y-3 text-[14px] text-slate-500">
+          {[
+            'Tell us about your organization type',
+            'Choose what you want to launch',
+            'Share your community size & timeline',
+          ].map((item, i) => (
+            <li key={i} className="flex items-center gap-3">
+              <span className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 text-[11px] font-bold flex items-center justify-center shrink-0">
+                {i + 1}
+              </span>
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
 
-      <button
-        onClick={onStart}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold py-3 rounded-xl transition-all text-[14px] shadow-md shadow-indigo-500/25 mb-4"
-      >
-        Start setup
-      </button>
-
-      <div className="text-center">
+      {/* ── Footer ── */}
+      <div className="ws-footer">
         <button
           onClick={onBack}
-          className="text-[13px] text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-[14px] text-slate-400 hover:text-slate-600 transition-colors"
         >
-          ← Back to website
+          Skip for now
+        </button>
+        <button
+          onClick={onStart}
+          className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[14px] font-semibold rounded-lg transition-colors"
+        >
+          Continue
         </button>
       </div>
+
     </div>
   );
 }
