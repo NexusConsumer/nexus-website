@@ -18,7 +18,7 @@ export default function GoogleSignIn({ variant = 'form' }: GoogleSignInProps) {
     setIsLoading(true);
     const scope = encodeURIComponent('email profile');
     const redirectUri = encodeURIComponent(REDIRECT_URI);
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}`;
     window.location.href = url;
   };
 
