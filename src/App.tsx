@@ -60,7 +60,8 @@ function App() {
           <Route path="/login"    element={<LanguageProvider language="en"><Login /></LanguageProvider>} />
           <Route path="/he/signup"   element={<SignupHe />} />
           <Route path="/he/login"    element={<LoginHe />} />
-          <Route path="/workspace"   element={<WorkspaceSetupPage />} />
+          <Route path="/workspace"    element={<LanguageProvider language="en"><WorkspaceSetupPage /></LanguageProvider>} />
+          <Route path="/he/workspace" element={<LanguageProvider language="he"><WorkspaceSetupPage /></LanguageProvider>} />
         </Routes>
       </Suspense>
     </BrowserRouter>
