@@ -161,7 +161,7 @@ export default function Signup() {
 
     try {
       await register({ email, fullName, password, country, emailUpdates });
-      navigate(homePath);
+      navigate('/workspace');
     } catch (err: any) {
       setIsLoading(false);
       setShouldShake(true);
@@ -436,7 +436,7 @@ export default function Signup() {
                   </div>
 
                   {/* Google sign up */}
-                  <GoogleSignIn onSuccess={() => navigate(homePath)} />
+                  <GoogleSignIn onSuccess={() => navigate('/workspace')} />
                 </div>
 
                 {/* Already have account */}

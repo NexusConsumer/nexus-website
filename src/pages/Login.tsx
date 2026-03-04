@@ -57,7 +57,7 @@ export default function Login() {
 
     try {
       await login(email, password, rememberMe);
-      navigate(homePath);
+      navigate('/workspace');
     } catch (err: any) {
       setIsLoading(false);
       setShouldShake(true);
@@ -218,7 +218,7 @@ export default function Login() {
 
               {/* Social Sign In */}
               <div className="space-y-3">
-                <GoogleSignIn onSuccess={() => navigate(homePath)} />
+                <GoogleSignIn onSuccess={() => navigate('/workspace')} />
 
                 <button
                   type="button"
