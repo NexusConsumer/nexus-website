@@ -253,7 +253,7 @@ export default function HomeContent() {
   }, []);
 
   return (
-    <div className="min-h-screen overflow-x-hidden">
+    <div className="min-h-screen [overflow-x:clip]">
       <Navbar />
       <Hero />
 
