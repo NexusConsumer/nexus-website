@@ -19,10 +19,9 @@ import webhookRoutes from './routes/webhook.routes';
 import paymentsRoutes from './routes/payments.routes';
 
 const app = express();
- app.set('trust proxy', 1);
+app.set('trust proxy', 1);
 
 // ─── Compression (gzip/brotli) ───────────────────────────
-// Must be FIRST — compresses all responses including static files and API
 app.use(compression());
 
 // ─── Security headers ────────────────────────────────────
@@ -31,10 +30,12 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        'img-src': ["'self'", 'data:', 'https://flagcdn.com', 'https://lh3.googleusercontent.com'],
-        'script-src': ["'self'", "'unsafe-inline'", 'https://accounts.google.com', 'https://cdn.jsdelivr.net', 'https://apis.google.com'],
+        'img-src': ["'self'", 'data:', 'https://flagcdn.com', 'https://lh3.googleusercontent.com', 'https://*.googleusercontent.com', 'https://*.google.com'],
+        'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://accounts.google.com', 'https://cdn.jsdelivr.net', 'https://apis.google.com'],
         'frame-src': ["'self'", 'https://accounts.google.com'],
-        'connect-src': ["'self'", 'https://accounts.google.com', 'https://oauth2.googleapis.com'],
+        'connect-src': ["'self'", 'https://accounts.google.com', 'https://oauth2.googleapis.com', 'https://*.googleapis.com'],
+        'style-src': ["'self'", "'unsafe-inline'", 'https://accounts.google.com', 'https://fonts.googleapis.com'],
+        'font-src': ["'self'", 'https://fonts.gstatic.com'],
       },
     },
   }),
@@ -51,7 +52,6 @@ app.use(
 );
 
 // ─── Webhook routes FIRST with raw body ──────────────────
-// Raw body required for HMAC signature verification
 app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 
 // ─── Body parsers for all other routes ───────────────────
@@ -74,10 +74,8 @@ app.use('/api/admin/ai', adminRoutes);
 app.use('/api/payments', paymentsRoutes);
 
 // ─── Serve frontend (SPA) ─────────────────────────────────
-// __dirname = backend/dist/ → ../public = backend/public/ (Vite output copied there at build time)
 const frontendDist = path.resolve(__dirname, '../public');
 if (existsSync(frontendDist)) {
-  // Hashed assets (JS/CSS/images with content-hash in filename) — cache forever
   app.use(
     '/assets',
     express.static(path.join(frontendDist, 'assets'), {
@@ -86,9 +84,6 @@ if (existsSync(frontendDist)) {
       immutable: true,
     }),
   );
-  // Other static files (images, fonts, favicons) — 1-hour cache.
-  // index.html gets special no-cache treatment via setHeaders so the browser
-  // always re-validates it after a deploy (it references new hashed asset filenames).
   app.use(
     express.static(frontendDist, {
       redirect: false,
@@ -100,8 +95,6 @@ if (existsSync(frontendDist)) {
       },
     }),
   );
-  // SPA fallback — serve index.html for all non-API client-side routes
-  // index.html itself must NOT be cached (it references new hashed assets after deploys)
   app.get(/^(?!\/api).*/, (_req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(frontendDist, 'index.html'));
