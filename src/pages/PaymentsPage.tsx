@@ -63,8 +63,8 @@ export default function PaymentsPage() {
       {/* ══════════════════════════════════════════════════════════
           HERO — light gray background matching home page
       ══════════════════════════════════════════════════════════ */}
-      <section className="relative pt-32 pb-0 bg-slate-50 overflow-x-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
+      <section className="relative pt-32 pb-20 bg-slate-50 overflow-x-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
 
             {/* ── Text column (DOM first → right in RTL, left in LTR) ── */}
@@ -128,29 +128,29 @@ export default function PaymentsPage() {
 
           </div>
         </div>
-
-        {/* ── Gradient diagonal — inside hero, fully contained, not clipped by S2 ── */}
-        <div
-          className="relative h-64"
-          style={{
-            maskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 70%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20%, black 70%, transparent 100%)',
-          }}
-        >
-          <AnimatedGradient
-            clipPath={
-              isRtl
-                ? 'polygon(0 60%, 100% 0, 100% 100%, 0 100%)'
-                : 'polygon(0 0, 100% 60%, 100% 100%, 0 100%)'
-            }
-          />
-        </div>
       </section>
+
+      {/* ── Gradient diagonal — floats between hero and S2, overlaps both ── */}
+      <div
+        className="relative z-10 h-64 -mt-16"
+        style={{
+          maskImage: 'linear-gradient(to bottom, transparent 0%, black 28%, black 68%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 28%, black 68%, transparent 100%)',
+        }}
+      >
+        <AnimatedGradient
+          clipPath={
+            isRtl
+              ? 'polygon(0 60%, 100% 0, 100% 100%, 0 100%)'
+              : 'polygon(0 0, 100% 60%, 100% 100%, 0 100%)'
+          }
+        />
+      </div>
 
       {/* ══════════════════════════════════════════════════════════
           S2 — קבלו תשלומים מכל מקום
       ══════════════════════════════════════════════════════════ */}
-      <section className="scroll-reveal relative py-20 md:py-32 bg-white overflow-x-hidden">
+      <section className="scroll-reveal relative z-0 -mt-16 py-20 md:py-32 bg-white overflow-x-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="max-w-3xl ml-auto text-right">
             <p className="text-stripe-purple font-semibold text-sm uppercase tracking-wider mb-4">
