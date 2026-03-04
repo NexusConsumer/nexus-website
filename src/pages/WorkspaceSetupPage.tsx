@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../i18n/LanguageContext';
 import DashboardMock from '../components/workspace/DashboardMock';
 import WelcomeModal from '../components/workspace/WelcomeModal';
 import OnboardingWizard from '../components/workspace/OnboardingWizard';
@@ -10,28 +11,32 @@ import ScheduleStep from '../components/workspace/ScheduleStep';
 type Phase = 'welcome' | 'wizard' | 'animation' | 'schedule';
 
 export interface OnboardingData {
-  organization_type: string;
-  use_case: string[];
-  community_size: string;
-  timeline: string;
+  org_name: string;
+  website: string;
+  business_desc: string;
+  primary_use_cases: string[];
+  extra_use_cases: string[];
 }
 
 export default function WorkspaceSetupPage() {
   const [phase, setPhase] = useState<Phase>('welcome');
   const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
   const { user } = useAuth();
+  const { direction } = useLanguage();
   const navigate = useNavigate();
+
+  const homePath = direction === 'rtl' ? '/he' : '/';
 
   const handleWizardComplete = (data: OnboardingData) => {
     setOnboardingData(data);
     setPhase('animation');
   };
 
-  // Dashboard blur: strong blur+dim during modal phases, lighter on schedule
+  // Reduced blur — more visible dashboard in the background
   const dashFilter =
     phase === 'schedule'
-      ? 'blur(1px) brightness(0.55)'
-      : 'blur(3px) brightness(0.38)';
+      ? 'blur(1px) brightness(0.58)'
+      : 'blur(1.5px) brightness(0.50)';
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#080C14]">
@@ -50,7 +55,7 @@ export default function WorkspaceSetupPage() {
         {phase === 'welcome' && (
           <WelcomeModal
             onStart={() => setPhase('wizard')}
-            onBack={() => navigate('/')}
+            onBack={() => navigate(homePath)}
           />
         )}
 
@@ -69,8 +74,8 @@ export default function WorkspaceSetupPage() {
           <ScheduleStep
             user={user}
             onboardingData={onboardingData}
-            onBackToSite={() => navigate('/')}
-            onExplore={() => navigate('/')}
+            onBackToSite={() => navigate(homePath)}
+            onExplore={() => navigate(homePath)}
           />
         )}
 
