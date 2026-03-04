@@ -7,8 +7,6 @@ import { createError } from '../middleware/errorHandler';
 
 const googleClient = new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET);
 
-// ─── Register ──────────────────────────────────────────────
-
 export async function register(
   data: {
     email: string;
@@ -34,12 +32,9 @@ export async function register(
     },
   });
 
-  // Issue tokens immediately so frontend can skip the extra login step
   const tokens = await issueTokens(user.id, user.email, user.role, false, meta);
   return { ...tokens, userId: user.id, email: user.email, fullName: user.fullName };
 }
-
-// ─── Login ─────────────────────────────────────────────────
 
 export async function login(
   email: string,
@@ -61,8 +56,6 @@ export async function login(
   return issueTokens(user.id, user.email, user.role, rememberMe, meta);
 }
 
-// ─── Google OAuth ──────────────────────────────────────────
-
 export async function googleAuth(
   idToken: string,
   meta: { userAgent?: string; ipAddress?: string } = {},
@@ -79,7 +72,6 @@ export async function googleAuth(
   });
 
   if (user) {
-    // Link Google account if user signed up with email
     if (!user.googleId) {
       user = await prisma.user.update({
         where: { id: user.id },
@@ -107,10 +99,6 @@ export async function googleAuth(
   return issueTokens(user.id, user.email, user.role, false, meta);
 }
 
-// ─── Google Auth (Authorization Code flow) ─────────────────
-// Used when frontend sends the auth code from @react-oauth/google flow: 'auth-code'
-// `postmessage` is the special redirect URI for popup-based auth-code flows
-
 export async function googleAuthFromCode(
   code: string,
   meta: { userAgent?: string; ipAddress?: string } = {},
@@ -126,7 +114,48 @@ export async function googleAuthFromCode(
   return googleAuth(tokens.id_token, meta);
 }
 
-// ─── Refresh tokens ────────────────────────────────────────
+export async function googleAuthFromAccessToken(
+  accessToken: string,
+  meta: { userAgent?: string; ipAddress?: string } = {},
+) {
+  const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw createError('Invalid Google access token', 401);
+  const payload = await response.json() as { sub: string; email: string; name?: string; picture?: string };
+  if (!payload.email) throw createError('Invalid Google token', 401);
+
+  let user = await prisma.user.findFirst({
+    where: { OR: [{ googleId: payload.sub }, { email: payload.email }] },
+  });
+
+  if (user) {
+    if (!user.googleId) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId: payload.sub, provider: 'GOOGLE', emailVerified: true },
+      });
+    }
+  } else {
+    user = await prisma.user.create({
+      data: {
+        email: payload.email,
+        fullName: payload.name ?? payload.email.split('@')[0],
+        googleId: payload.sub,
+        provider: 'GOOGLE',
+        emailVerified: true,
+        avatarUrl: payload.picture,
+      },
+    });
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
+  return issueTokens(user.id, user.email, user.role, false, meta);
+}
 
 export async function refreshTokens(
   rawToken: string,
@@ -143,7 +172,6 @@ export async function refreshTokens(
   const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
 
   if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
-    // Reuse detection: revoke ALL tokens for this user
     if (stored?.revokedAt) {
       await prisma.refreshToken.updateMany({
         where: { userId: payload.sub },
@@ -153,7 +181,6 @@ export async function refreshTokens(
     throw createError('Invalid refresh token', 401);
   }
 
-  // Revoke old token
   await prisma.refreshToken.update({
     where: { id: stored.id },
     data: { revokedAt: new Date() },
@@ -165,8 +192,6 @@ export async function refreshTokens(
   return issueTokens(user.id, user.email, user.role, false, meta);
 }
 
-// ─── Logout ────────────────────────────────────────────────
-
 export async function logout(rawToken: string) {
   const tokenHash = hashToken(rawToken);
   await prisma.refreshToken.updateMany({
@@ -175,13 +200,10 @@ export async function logout(rawToken: string) {
   });
 }
 
-// ─── Forgot / Reset password ───────────────────────────────
-
 export async function forgotPassword(email: string): Promise<string | null> {
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
-  if (!user || user.provider !== 'EMAIL') return null; // Fail silently
+  if (!user || user.provider !== 'EMAIL') return null;
 
-  // Invalidate old tokens
   await prisma.passwordReset.updateMany({
     where: { userId: user.id, used: false },
     data: { used: true },
@@ -192,7 +214,7 @@ export async function forgotPassword(email: string): Promise<string | null> {
     data: {
       tokenHash: hashToken(rawToken),
       userId: user.id,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     },
   });
 
@@ -211,15 +233,12 @@ export async function resetPassword(rawToken: string, newPassword: string) {
   await prisma.$transaction([
     prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
     prisma.passwordReset.update({ where: { id: record.id }, data: { used: true } }),
-    // Revoke all refresh tokens (force re-login)
     prisma.refreshToken.updateMany({
       where: { userId: record.userId },
       data: { revokedAt: new Date() },
     }),
   ]);
 }
-
-// ─── Internal: issue token pair ───────────────────────────
 
 async function issueTokens(
   userId: string,

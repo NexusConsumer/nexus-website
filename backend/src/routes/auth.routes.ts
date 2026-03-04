@@ -19,8 +19,6 @@ const COOKIE_OPTS = (maxAge: number) => ({
   path: '/',
 });
 
-// ─── POST /api/auth/register ───────────────────────────────
-
 const registerSchema = z.object({
   body: z.object({
     email: z.string().email(),
@@ -41,7 +39,6 @@ router.post(
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip,
       });
-      // Send verification email (fire-and-forget)
       EmailService.sendWelcomeEmail(result.email, result.fullName).catch(console.error);
       const maxAge = result.ttlDays * 24 * 60 * 60 * 1000;
       res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(maxAge));
@@ -51,8 +48,6 @@ router.post(
     }
   },
 );
-
-// ─── POST /api/auth/login ──────────────────────────────────
 
 const loginSchema = z.object({
   body: z.object({
@@ -73,7 +68,6 @@ router.post(
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip,
       });
-
       const maxAge = result.ttlDays * 24 * 60 * 60 * 1000;
       res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(maxAge));
       res.json({ accessToken: result.accessToken });
@@ -83,18 +77,16 @@ router.post(
   },
 );
 
-// ─── POST /api/auth/google ─────────────────────────────────
-// Accepts either:
-//   { idToken }  — ID token from GoogleLogin component
-//   { code }     — authorization code from useGoogleLogin({ flow: 'auth-code' })
-
 const googleSchema = z.object({
   body: z
     .object({
       idToken: z.string().min(1).optional(),
       code: z.string().min(1).optional(),
+      accessToken: z.string().min(1).optional(),
     })
-    .refine((d) => d.idToken || d.code, { message: 'idToken or code is required' }),
+    .refine((d) => d.idToken || d.code || d.accessToken, {
+      message: 'idToken, code, or accessToken is required',
+    }),
 });
 
 router.post(
@@ -104,10 +96,14 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const meta = { userAgent: req.headers['user-agent'], ipAddress: req.ip };
-      const result = req.body.code
-        ? await AuthService.googleAuthFromCode(req.body.code, meta)
-        : await AuthService.googleAuth(req.body.idToken, meta);
-
+      let result;
+      if (req.body.code) {
+        result = await AuthService.googleAuthFromCode(req.body.code, meta);
+      } else if (req.body.accessToken) {
+        result = await AuthService.googleAuthFromAccessToken(req.body.accessToken, meta);
+      } else {
+        result = await AuthService.googleAuth(req.body.idToken, meta);
+      }
       res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(7 * 24 * 60 * 60 * 1000));
       res.json({ accessToken: result.accessToken });
     } catch (err) {
@@ -116,9 +112,6 @@ router.post(
   },
 );
 
-// ─── POST /api/auth/refresh ────────────────────────────────
-// Returns accessToken + user profile so the frontend avoids a second /me round-trip
-
 router.post('/refresh', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const rawToken = req.cookies?.[REFRESH_COOKIE];
@@ -126,18 +119,14 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
       res.status(401).json({ error: 'No refresh token' });
       return;
     }
-
     const result = await AuthService.refreshTokens(rawToken, {
       userAgent: req.headers['user-agent'],
       ipAddress: req.ip,
     });
-
-    // Fetch user profile in parallel — token rotation already needed the user row
     const user = await prisma.user.findUnique({
       where: { id: result.userId },
       select: { id: true, email: true, fullName: true, role: true, avatarUrl: true },
     });
-
     const maxAge = result.ttlDays * 24 * 60 * 60 * 1000;
     res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(maxAge));
     res.json({ accessToken: result.accessToken, user });
@@ -145,8 +134,6 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
     next(err);
   }
 });
-
-// ─── POST /api/auth/logout ─────────────────────────────────
 
 router.post('/logout', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -159,8 +146,6 @@ router.post('/logout', async (req: Request, res: Response, next: NextFunction) =
   }
 });
 
-// ─── POST /api/auth/forgot-password ───────────────────────
-
 const forgotSchema = z.object({
   body: z.object({ email: z.string().email() }),
 });
@@ -172,13 +157,10 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const rawToken = await AuthService.forgotPassword(req.body.email);
-      // Always respond 200 to prevent email enumeration
       if (rawToken) {
         const user = await prisma.user.findUnique({ where: { email: req.body.email } });
         if (user) {
-          EmailService.sendPasswordResetEmail(user.email, user.fullName, rawToken).catch(
-            console.error,
-          );
+          EmailService.sendPasswordResetEmail(user.email, user.fullName, rawToken).catch(console.error);
         }
       }
       res.json({ message: 'If the email exists, a reset link has been sent.' });
@@ -187,8 +169,6 @@ router.post(
     }
   },
 );
-
-// ─── POST /api/auth/reset-password ────────────────────────
 
 const resetSchema = z.object({
   body: z.object({
@@ -210,8 +190,6 @@ router.post(
     }
   },
 );
-
-// ─── GET /api/auth/me ──────────────────────────────────────
 
 router.get('/me', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {

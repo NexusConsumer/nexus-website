@@ -8,8 +8,6 @@ import {
 } from 'react';
 import { api, setAccessToken, refreshAccessToken } from '../lib/api';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
 export interface AuthUser {
   id: string;
   email: string;
@@ -31,22 +29,16 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  googleLogin: (code: string) => Promise<void>;
+  googleLogin: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
-// ─── Context ─────────────────────────────────────────────────────────────────
-
 const AuthContext = createContext<AuthContextType | null>(null);
-
-// ─── Provider ────────────────────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // On mount: restore session — refresh endpoint now returns user profile
-  // eliminating the second /me round-trip (waterfall → single request)
   useEffect(() => {
     refreshAccessToken()
       .then((result) => {
@@ -73,9 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(profile);
   }, []);
 
-  // Accepts the authorization code from @react-oauth/google flow: 'auth-code'
-  const googleLogin = useCallback(async (code: string) => {
-    const data = await api.post<{ accessToken: string }>('/api/auth/google', { code });
+  const googleLogin = useCallback(async (accessToken: string) => {
+    const data = await api.post<{ accessToken: string }>('/api/auth/google', { accessToken });
     setAccessToken(data.accessToken);
     const profile = await api.get<AuthUser>('/api/auth/me');
     setUser(profile);
@@ -93,8 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-
-// ─── Hook ────────────────────────────────────────────────────────────────────
 
 export function useAuth(): AuthContextType {
   const ctx = useContext(AuthContext);
