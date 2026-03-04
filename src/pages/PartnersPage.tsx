@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, X, Users } from 'lucide-react';
 import Navbar from '../components/Navbar';
@@ -8,11 +8,18 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 
+const Footer = lazy(() => import('../components/Footer'));
+
+// ─── Constants ────────────────────────────────────────────────
+const ITEMS_PER_PAGE = 12;
+
 // ─── Types ───────────────────────────────────────────────────
 interface PartnersResponse {
   partners: Partner[];
   total: number;
 }
+
+type SortBy = 'default' | 'az' | 'za';
 
 // ─── Component ───────────────────────────────────────────────
 export default function PartnersPage() {
@@ -24,6 +31,8 @@ export default function PartnersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [sortBy, setSortBy] = useState<SortBy>('default');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const pT = (t as any).partnersPage as Record<string, string>;
 
@@ -45,6 +54,11 @@ export default function PartnersPage() {
     fetchPartners();
   }, [authLoading, fetchPartners]);
 
+  // Reset to page 1 whenever filters or sort change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedCategory, sortBy]);
+
   // Unique sorted categories from all partners
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -62,7 +76,20 @@ export default function PartnersPage() {
     });
   }, [partners, search, selectedCategory]);
 
-  const loginLink = language === 'he' ? '/he/login' : '/login';
+  // Client-side sort
+  const sorted = useMemo(() => {
+    if (sortBy === 'az') return [...filtered].sort((a, b) => a.title.localeCompare(b.title));
+    if (sortBy === 'za') return [...filtered].sort((a, b) => b.title.localeCompare(a.title));
+    return filtered;
+  }, [filtered, sortBy]);
+
+  // Pagination
+  const totalPages = Math.ceil(sorted.length / ITEMS_PER_PAGE);
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return sorted.slice(start, start + ITEMS_PER_PAGE);
+  }, [sorted, currentPage]);
+
   const signupLink = language === 'he' ? '/he/signup' : '/signup';
 
   return (
@@ -71,44 +98,29 @@ export default function PartnersPage() {
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section
-        className="relative pt-28 pb-20 text-white overflow-hidden"
+        className="relative pt-36 pb-36 text-white overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #0A2540 0%, #1a1f5e 60%, #0A2540 100%)' }}
       >
-        {/* Decorative blobs */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-10 pointer-events-none"
-          style={{ background: 'radial-gradient(circle, #635BFF 0%, transparent 70%)' }} />
+        {/* Decorative blob */}
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full opacity-10 pointer-events-none"
+          style={{ background: 'radial-gradient(circle, #635BFF 0%, transparent 70%)' }}
+        />
 
         {/* Rotating partner logo rings */}
-        {partners.length > 0 && <PartnerRingsAnimation partners={partners} />}
+        {partners.length > 0 && <PartnerRingsAnimation partners={partners} language={language} />}
 
-        <div className="relative z-10 max-w-3xl mx-auto px-6 text-center">
-          <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
+        <div className={`relative z-10 max-w-3xl mx-auto px-6 ${direction === 'rtl' ? 'text-right' : 'text-center'}`}>
+          <div className={`inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-sm font-medium mb-6 ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
             <Users size={14} />
             <span>{partners.length > 0 ? `${partners.length}+ ` : ''}{pT?.partnersCount ?? 'Partnerships'}</span>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-4">
-            {pT?.heroTitle ?? 'Exclusive Benefits for Nexus Community'}
+            {pT?.heroTitle ?? 'Find a Nexus partner'}
           </h1>
-          <p className="text-lg text-white/70 max-w-xl mx-auto mb-8">
+          <p className={`text-lg text-white/70 max-w-xl mb-8 ${direction === 'rtl' ? '' : 'mx-auto'}`}>
             {pT?.heroSubtitle ?? 'Leading brands with exclusive discounts for community members'}
           </p>
-
-          {!isLoggedIn && (
-            <div className={`flex flex-wrap gap-3 justify-center ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
-              <Link
-                to={signupLink}
-                className="bg-stripe-purple text-white font-semibold px-6 py-3 rounded-xl hover:bg-violet-500 transition-colors"
-              >
-                {pT?.joinNow ?? (language === 'he' ? 'הצטרפות חינם' : 'Join free')}
-              </Link>
-              <Link
-                to={loginLink}
-                className="bg-white/10 border border-white/30 text-white font-semibold px-6 py-3 rounded-xl hover:bg-white/20 transition-colors"
-              >
-                {t.navbar.signIn}
-              </Link>
-            </div>
-          )}
         </div>
       </section>
 
@@ -118,7 +130,9 @@ export default function PartnersPage() {
 
           {/* Search */}
           <div className="relative flex-shrink-0 w-full sm:w-64">
-            <Search size={15} className="absolute top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            <Search
+              size={15}
+              className="absolute top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
               style={direction === 'rtl' ? { right: '12px' } : { left: '12px' }}
             />
             <input
@@ -154,6 +168,20 @@ export default function PartnersPage() {
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
+
+          {/* Sort dropdown */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className="border border-slate-200 rounded-xl text-sm text-slate-700 bg-slate-50
+                       focus:outline-none focus:ring-2 focus:ring-stripe-purple/30 focus:border-stripe-purple
+                       py-2 px-3 cursor-pointer"
+            dir={direction}
+          >
+            <option value="default">{pT?.sortDefault ?? (language === 'he' ? 'המלצה' : 'Recommended')}</option>
+            <option value="az">{pT?.sortAZ ?? (language === 'he' ? 'א–ת' : 'A–Z')}</option>
+            <option value="za">{pT?.sortZA ?? (language === 'he' ? 'ת–א' : 'Z–A')}</option>
+          </select>
         </div>
       </div>
 
@@ -164,8 +192,8 @@ export default function PartnersPage() {
         {!loading && (
           <p className="text-sm text-slate-500 mb-6">
             {language === 'he'
-              ? `מציג ${filtered.length} שיתופי פעולה`
-              : `Showing ${filtered.length} partnerships`}
+              ? `מציג ${sorted.length} שיתופי פעולה`
+              : `Showing ${sorted.length} partnerships`}
           </p>
         )}
 
@@ -186,7 +214,7 @@ export default function PartnersPage() {
         )}
 
         {/* No results */}
-        {!loading && filtered.length === 0 && (
+        {!loading && sorted.length === 0 && (
           <div className="text-center py-24">
             <p className="text-slate-500 text-lg font-medium mb-2">
               {pT?.noResults ?? (language === 'he' ? 'לא נמצאו תוצאות' : 'No results found')}
@@ -195,7 +223,7 @@ export default function PartnersPage() {
               {pT?.noResultsHint ?? (language === 'he' ? 'נסה מונח חיפוש אחר' : 'Try a different search term')}
             </p>
             <button
-              onClick={() => { setSearch(''); setSelectedCategory(''); }}
+              onClick={() => { setSearch(''); setSelectedCategory(''); setSortBy('default'); }}
               className="mt-4 text-stripe-purple text-sm font-semibold hover:underline"
             >
               {language === 'he' ? 'נקה סינון' : 'Clear filters'}
@@ -204,16 +232,35 @@ export default function PartnersPage() {
         )}
 
         {/* Grid */}
-        {!loading && filtered.length > 0 && (
+        {!loading && sorted.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((partner) => (
+            {paginated.map((partner) => (
               <PartnerCard key={partner.id} partner={partner} isLoggedIn={isLoggedIn} />
             ))}
           </div>
         )}
 
+        {/* Pagination */}
+        {!loading && totalPages > 1 && (
+          <div className={`flex gap-2 justify-center mt-8 flex-wrap ${direction === 'rtl' ? 'flex-row-reverse' : ''}`}>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <button
+                key={page}
+                onClick={() => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${
+                  currentPage === page
+                    ? 'bg-stripe-purple text-white'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:border-stripe-purple hover:text-stripe-purple'
+                }`}
+              >
+                {page}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Guest CTA banner */}
-        {!isLoggedIn && !loading && filtered.length > 0 && (
+        {!isLoggedIn && !loading && sorted.length > 0 && (
           <div className="mt-12 bg-gradient-to-r from-stripe-blue to-violet-900 rounded-2xl p-8 text-white text-center">
             <h2 className="text-xl font-bold mb-2">
               {language === 'he' ? 'הצטרפו לקהילת Nexus וגלו את כל ההטבות' : 'Join Nexus Community and unlock all benefits'}
@@ -232,6 +279,11 @@ export default function PartnersPage() {
           </div>
         )}
       </main>
+
+      {/* ── Footer ───────────────────────────────────────────── */}
+      <Suspense fallback={<div className="h-40 bg-slate-900" />}>
+        <Footer />
+      </Suspense>
     </div>
   );
 }

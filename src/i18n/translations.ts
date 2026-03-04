@@ -462,6 +462,9 @@ export const translations = {
       signIn: 'Sign in',
       guestBannerTitle: 'Join the Nexus community and unlock all benefits',
       guestBannerSub: 'Sign in or create a free account to view exclusive discounts',
+      sortDefault: 'Recommended',
+      sortAZ: 'A–Z',
+      sortZA: 'Z–A',
     },
   },
   he: {
@@ -916,7 +919,7 @@ export const translations = {
     },
     partnersPage: {
       heroTitle: 'מצא שותף של נקסוס עם ההטבה או הפתרון שאתה צריך',
-      heroSubtitle: 'מאות מותגים מובילים עם הנחות בלעדיות לחברי הקהילה',
+      heroSubtitle: 'מאות שותפים ומותגים עובדים עם נקסוס כדי לתת ערך לקהילה שלה',
       searchPlaceholder: 'חפש מותג...',
       allCategories: 'כל הקטגוריות',
       loginToView: 'התחבר לצפייה בהטבה',
@@ -927,6 +930,9 @@ export const translations = {
       signIn: 'כניסה',
       guestBannerTitle: 'הצטרף לקהילת Nexus ופתח את כל ההטבות',
       guestBannerSub: 'התחבר או צור חשבון חינמי לצפייה בהנחות הבלעדיות',
+      sortDefault: 'המלצה',
+      sortAZ: 'א–ת',
+      sortZA: 'ת–א',
     },
   },
 };

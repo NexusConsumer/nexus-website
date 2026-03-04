@@ -8,8 +8,8 @@ const RINGS = [
   { speed: 0.0012, direction:  1, radius: 500 },
 ] as const;
 
-const CIRCLE_SIZE = 88;
-const GAP = 32;
+const CIRCLE_SIZE = 120;
+const GAP = 8;
 
 // ─── Internal types ───────────────────────────────────────────
 interface CircleObj {
@@ -23,10 +23,11 @@ interface CircleObj {
 
 interface Props {
   partners: Partner[];
+  language: string;
 }
 
 // ─── Component ────────────────────────────────────────────────
-export default function PartnerRingsAnimation({ partners }: Props) {
+export default function PartnerRingsAnimation({ partners, language: _language }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
