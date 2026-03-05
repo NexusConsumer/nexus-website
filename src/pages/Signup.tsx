@@ -282,7 +282,7 @@ export default function Signup() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 flex items-start justify-center px-8 py-8 overflow-y-auto">
+        <div className="flex-1 min-h-0 flex items-start justify-center px-8 py-8 overflow-y-auto">
           <div className="max-w-6xl w-full grid lg:grid-cols-2 gap-12 items-start">
             {/* Left — value props */}
             <div className="hidden lg:block">
