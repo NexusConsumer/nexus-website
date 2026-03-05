@@ -147,6 +147,7 @@ export async function sendPasswordResetEmail(
     to: email,
     toName: fullName,
     subject: 'איפוס סיסמה — Nexus',
+    text: `שלום ${fullName},\n\nקיבלנו בקשה לאיפוס הסיסמה שלך.\n\nלאיפוס הסיסמה לחץ על הקישור:\n\n${resetUrl}\n\nהקישור בתוקף לשעה אחת.\n\nאם לא ביקשת לאפס סיסמה, אנא התעלם מהאימייל הזה.`,
     html: `
       <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #6366f1;">שלום ${fullName},</h1>
