@@ -1,8 +1,8 @@
 import { useEffect, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, CreditCard, Link2, RefreshCw, Users, Landmark, LayoutDashboard } from 'lucide-react';
+import { Check, CreditCard, Link2, RefreshCw, Users } from 'lucide-react';
 import Navbar from '../components/Navbar';
-import PaymentAnimation, { PaymentFlipPanel } from '../components/PaymentAnimation';
+import PaymentAnimation, { PaymentPricingPanel, PaymentCheckoutPanel } from '../components/PaymentAnimation';
 import AnimatedGradient from '../components/AnimatedGradient';
 import { useLanguage } from '../i18n/LanguageContext';
 import visaLogo from '../assets/logos/visa-logo.png';
@@ -214,17 +214,13 @@ export default function PaymentsPage() {
                   { src: '/bit-logo.png', alt: 'Bit', label: 'Bit' },
                   { src: '/paybox-transparent.png', alt: 'PayBox', label: 'PayBox' },
                   { src: '/apple-pay.png', alt: 'Apple Pay', label: 'Apple Pay' },
+                  { src: '/google-pay.png', alt: 'Google Pay', label: 'Google Pay' },
                 ].map((pm) => (
                   <div key={pm.alt} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col items-center justify-center gap-2 hover:shadow-md hover:border-stripe-purple/30 transition-all duration-300">
                     <img src={pm.src} alt={pm.alt} className="h-8 object-contain" />
                     <span className="text-xs text-slate-500 font-medium">{pm.label}</span>
                   </div>
                 ))}
-                {/* Bank transfer — icon-based */}
-                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col items-center justify-center gap-2 hover:shadow-md hover:border-stripe-purple/30 transition-all duration-300">
-                  <Landmark size={28} className="text-slate-700" />
-                  <span className="text-xs text-slate-500 font-medium">{he ? 'העברה בנקאית' : 'Bank Transfer'}</span>
-                </div>
               </div>
               <p className="text-sm text-slate-400">{he ? 'ועוד מגוון אמצעי תשלום נוספים' : 'And many more payment methods'}</p>
             </div>
@@ -270,10 +266,10 @@ export default function PaymentsPage() {
               </ul>
             </div>
 
-            {/* ── Pricing ↔ Checkout flip panel, staggered entrance + auto cross-fade triggered by parent section.revealed ── */}
-            <div className="pricing-autoplay flex justify-center lg:justify-end items-start overflow-hidden">
-              <div style={{ transform: 'scale(0.78)', transformOrigin: 'top center', marginBottom: '-80px' }}>
-                <PaymentFlipPanel />
+            {/* ── Checkout panel, staggered section entrance triggered by parent section.revealed ── */}
+            <div className="checkout-autoplay flex justify-center lg:justify-end items-start overflow-hidden">
+              <div style={{ transform: 'scale(0.85)', transformOrigin: 'top center', marginBottom: '-60px' }}>
+                <PaymentCheckoutPanel />
               </div>
             </div>
 
@@ -309,21 +305,11 @@ export default function PaymentsPage() {
               </ul>
             </div>
 
-            <div className="bg-slate-50 rounded-2xl border border-slate-100 p-8 mt-8 lg:mt-16 text-right">
-              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-5">
-                {he ? 'מתאים במיוחד עבור:' : 'Ideal for:'}
-              </p>
-              <ul className="space-y-5">
-                {(he
-                  ? ['תוכניות שירות', 'קורסים', 'מועדוני לקוחות']
-                  : ['Service plans', 'Courses', 'Customer loyalty clubs']
-                ).map((item) => (
-                  <li key={item} className={`flex items-center gap-3 ${isRtl ? '' : 'flex-row-reverse'}`}>
-                    <div className="w-2 h-2 rounded-full bg-stripe-purple flex-shrink-0" />
-                    <span className="text-slate-700 font-medium">{item}</span>
-                  </li>
-                ))}
-              </ul>
+            {/* ── Pricing plans panel, staggered entrance triggered by parent section.revealed ── */}
+            <div className="pricing-autoplay flex justify-center lg:justify-end items-start overflow-hidden">
+              <div style={{ transform: 'scale(0.85)', transformOrigin: 'top center', marginBottom: '-60px' }}>
+                <PaymentPricingPanel />
+              </div>
             </div>
 
           </div>
@@ -363,77 +349,6 @@ export default function PaymentsPage() {
                 ? ['להגיע לקהלים חדשים', 'להגדיל מכירות', 'להיחשף לקהילות פעילות']
                 : ['Reach new audiences', 'Increase sales', 'Gain exposure in active communities']
               ).map((item) => <CheckRow key={item} text={item} />)}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════
-          S6 — שירותים פיננסיים
-      ══════════════════════════════════════════════════════════ */}
-      <section className="scroll-reveal relative py-20 md:py-32 overflow-x-hidden">
-        <div
-          className="absolute inset-0 bg-slate-50"
-          style={{
-            clipPath: isRtl
-              ? 'polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 80px))'
-              : 'polygon(0 0, 100% 0, 100% calc(100% - 80px), 0 100%)',
-          }}
-        />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="max-w-3xl ml-auto text-right">
-            <p className={`text-stripe-purple font-semibold text-sm uppercase tracking-wider mb-4 flex items-center gap-2 ${isRtl ? '' : 'flex-row-reverse'}`}>
-              <Landmark size={14} />
-              {he ? 'פיננסים' : 'Finance'}
-            </p>
-            <h2 className="text-4xl lg:text-5xl font-bold text-slate-900 tracking-tight mb-6 leading-tight">
-              {he ? 'שירותים פיננסיים לעסקים' : 'Financial Services for Business'}
-            </h2>
-            <p className="text-lg text-slate-600 leading-relaxed mb-8">
-              {he
-                ? 'מעבר לסליקה, Nexus מאפשרת גם גישה לפתרונות פיננסיים מתקדמים.'
-                : 'Beyond payments, Nexus also gives you access to advanced financial solutions.'}
-            </p>
-            <ul className="space-y-4 mb-8">
-              {(he
-                ? ['זיכוי מהיר לכספי סליקה', 'ניכיון עסקאות', 'פתרונות מימון לעסקים']
-                : ['Fast credit of payment funds', 'Invoice discounting', 'Business financing solutions']
-              ).map((item) => <Bullet key={item} text={item} icon={Landmark} />)}
-            </ul>
-            <p className="text-slate-500">
-              {he
-                ? 'כלים שמאפשרים לעסק לצמוח בצורה יציבה.'
-                : 'Tools that enable your business to grow steadily.'}
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════════════════════════════════════════════════
-          S7 — מערכת אחת
-      ══════════════════════════════════════════════════════════ */}
-      <section className="scroll-reveal relative py-20 md:py-32 bg-white overflow-x-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="max-w-3xl ml-auto text-right">
-            <p className={`text-stripe-purple font-semibold text-sm uppercase tracking-wider mb-4 flex items-center gap-2 ${isRtl ? '' : 'flex-row-reverse'}`}>
-              <LayoutDashboard size={14} />
-              {he ? 'ניהול' : 'Management'}
-            </p>
-            <h2 className="text-4xl lg:text-5xl font-bold text-slate-900 tracking-tight mb-10 leading-tight">
-              {he ? 'מערכת אחת לניהול כל התשלומים' : 'One system to manage all payments'}
-            </h2>
-            <div className="space-y-5">
-              {(he
-                ? ['ניהול עסקאות במקום אחד', 'ממשק פשוט וברור', 'אבטחת מידע מתקדמת']
-                : ['Manage transactions in one place', 'Simple and clear interface', 'Advanced data security']
-              ).map((item) => (
-                <div key={item} className={`flex items-center gap-4 ${isRtl ? '' : 'flex-row-reverse'}`}>
-                  <span className="w-8 h-8 rounded-full bg-stripe-purple/10 flex items-center justify-center flex-shrink-0">
-                    <Check size={16} className="text-stripe-purple" />
-                  </span>
-                  <span className="text-xl font-semibold text-slate-800">{item}</span>
-                </div>
-              ))}
             </div>
           </div>
         </div>
