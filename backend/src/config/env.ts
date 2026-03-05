@@ -32,8 +32,11 @@ const envSchema = z.object({
   // Notifications
   AGENT_WHATSAPP_NUMBER: z.string().min(1).optional(),
 
-  // Email (Resend) — optional (email disabled when absent)
-  RESEND_API_KEY: z.string().min(1).optional(),
+  // Email (SMTP / SendPulse) — optional (email disabled when absent)
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
   EMAIL_FROM: z.string().email().optional(),
 
   // Payments
@@ -60,7 +63,7 @@ const optional = {
   'AI Chat (OpenAI)': env.OPENAI_API_KEY,
   'WhatsApp Notifications': env.WHATSAPP_TOKEN,
   'Apollo Enrichment': env.APOLLO_API_KEY,
-  'Email (Resend)': env.RESEND_API_KEY,
+  'Email (SMTP)': env.SMTP_HOST,
 };
 for (const [feature, key] of Object.entries(optional)) {
   if (!key) console.warn(`⚠️  ${feature} disabled — env var not set`);

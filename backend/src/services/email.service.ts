@@ -1,16 +1,29 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { env } from '../config/env';
 
-const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
-const FROM = env.EMAIL_FROM ?? 'noreply@nexus.io';
+const FROM = env.EMAIL_FROM ?? env.SMTP_USER ?? 'noreply@nexus-payment.com';
 const FRONTEND = env.FRONTEND_URL;
+
+function createTransport() {
+  if (!env.SMTP_HOST || !env.SMTP_USER || !env.SMTP_PASS) return null;
+  return nodemailer.createTransport({
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT ?? 587,
+    secure: (env.SMTP_PORT ?? 587) === 465,
+    auth: { user: env.SMTP_USER, pass: env.SMTP_PASS },
+  });
+}
+
+async function sendMail(options: { to: string; subject: string; html: string }) {
+  const transport = createTransport();
+  if (!transport) return; // email disabled — SMTP not configured
+  await transport.sendMail({ from: FROM, ...options });
+}
 
 // ─── Welcome email ─────────────────────────────────────────
 
 export async function sendWelcomeEmail(email: string, fullName: string) {
-  if (!resend) return; // email disabled — RESEND_API_KEY not set
-  await resend.emails.send({
-    from: FROM,
+  await sendMail({
     to: email,
     subject: 'ברוכים הבאים ל-Nexus! 🎉',
     html: `
@@ -42,11 +55,8 @@ export async function sendVerificationEmail(
   fullName: string,
   rawToken: string,
 ) {
-  if (!resend) return; // email disabled
   const verifyUrl = `${FRONTEND}/verify-email?token=${rawToken}`;
-
-  await resend.emails.send({
-    from: FROM,
+  await sendMail({
     to: email,
     subject: 'Verify your Nexus account',
     html: `
@@ -79,11 +89,8 @@ export async function sendPasswordResetEmail(
   fullName: string,
   rawToken: string,
 ) {
-  if (!resend) return; // email disabled
   const resetUrl = `${FRONTEND}/reset-password?token=${rawToken}`;
-
-  await resend.emails.send({
-    from: FROM,
+  await sendMail({
     to: email,
     subject: 'איפוס סיסמה — Nexus',
     html: `
@@ -121,9 +128,7 @@ export async function sendDailyDigest(
     date: string;
   },
 ) {
-  if (!resend) return; // email disabled
-  await resend.emails.send({
-    from: FROM,
+  await sendMail({
     to,
     subject: `סיכום יומי Nexus — ${stats.date}`,
     html: `
