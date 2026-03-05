@@ -57,13 +57,13 @@ export default function PaymentsPage() {
     <div dir={direction} className="min-h-screen bg-white">
       <Navbar variant="dark" />
 
-      {/* Override payment-stage: overflow visible + phone positioning in hero */}
+      {/* Override payment-stage: no background, no frame, just the phone */}
       <style>{`
-        .payments-hero-anim .payment-stage { overflow: visible !important; }
+        .payments-hero-anim .payment-stage { overflow: visible !important; background: none !important; border: none !important; box-shadow: none !important; }
+        .payments-hero-anim .payment-stage::before { display: none !important; }
         .payments-hero-anim .payment-phone { left: 80px !important; }
-        [dir="rtl"] .payments-hero-anim .payment-phone { left: 20px !important; right: auto !important; top: 40px !important; }
+        [dir="rtl"] .payments-hero-anim .payment-phone { left: 60px !important; right: auto !important; top: 40px !important; }
         [dir="rtl"] .payments-hero-anim .payment-stage { height: 100%; }
-        [dir="rtl"] .payments-hero-anim .payment-stage::before { display: none !important; }
       `}</style>
 
       {/* ══════════════════════════════════════════════════════════
@@ -74,7 +74,7 @@ export default function PaymentsPage() {
 
           {/* RTL: Phone pulled out of grid, absolutely positioned on the left */}
           {isRtl && (
-            <div className="payments-hero-anim payment-card-expandable absolute left-6 top-0 bottom-0 w-[280px] hidden lg:block z-10">
+            <div className="payments-hero-anim payment-card-expandable absolute left-16 top-0 bottom-0 w-[280px] hidden lg:block z-10">
               <PaymentAnimation show="phone" />
             </div>
           )}
@@ -146,14 +146,8 @@ export default function PaymentsPage() {
         </div>
       </section>
 
-      {/* ── Gradient diagonal — floats between hero and S2, overlaps both ── */}
-      <div
-        className="relative z-10 h-64 -mt-16"
-        style={{
-          maskImage: 'linear-gradient(to bottom, transparent 0%, black 28%, black 68%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 28%, black 68%, transparent 100%)',
-        }}
-      >
+      {/* ── Gradient diagonal — full visible strip between hero and S2 ── */}
+      <div className="relative z-10 h-64 -mt-16">
         <AnimatedGradient clipPath={isRtl ? "polygon(100% 0, 0 60%, 0 100%, 100% 100%)" : "polygon(0 0, 100% 60%, 100% 100%, 0 100%)"} />
       </div>
 
