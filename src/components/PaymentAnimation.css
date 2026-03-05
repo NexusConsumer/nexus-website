@@ -427,11 +427,11 @@
 }
 
 .pricing-card {
-  width: 490px;
-  min-width: 490px;
-  max-width: 490px;
-  height: 444px;
-  min-height: 444px;
+  width: 620px;
+  min-width: 620px;
+  max-width: 620px;
+  height: 520px;
+  min-height: 520px;
   background: #f9fafb;
   border-radius: 0;
   padding: 24px 16px;
@@ -763,11 +763,11 @@
 
 /* Checkout Panel Styles */
 .checkout-card {
-  width: 490px;
-  min-width: 490px;
-  max-width: 490px;
-  height: 444px;
-  min-height: 444px;
+  width: 620px;
+  min-width: 620px;
+  max-width: 620px;
+  height: 520px;
+  min-height: 520px;
   background: #ffffff;
   border-radius: 0;
   overflow: hidden;
@@ -981,60 +981,24 @@
   opacity: 1;
 }
 
-/* ── S3 Pricing ↔ Checkout auto cross-fade ─────────────────────────
-   After the plans stagger in (~1.2 s), we wait 2 s then loop a 12 s
-   cross-fade between the pricing front and the checkout back panel.
-   ─────────────────────────────────────────────────────────────────── */
-.s3-flip-wrap  { position: relative; }
-.s3-flip-front { position: relative; z-index: 2; }
-.s3-flip-back  { position: absolute; inset: 0; z-index: 1; opacity: 0; }
-
-/* Trigger cross-fade loop 2 s after section.revealed */
-.revealed .pricing-autoplay .s3-flip-front {
-  animation: s3FadeOut 12s ease-in-out 2s infinite;
-}
-.revealed .pricing-autoplay .s3-flip-back {
-  animation: s3FadeIn 12s ease-in-out 2s infinite;
+/* ── Staggered checkout section entrance — triggered by parent section.revealed ── */
+.checkout-autoplay .checkout-section-1,
+.checkout-autoplay .checkout-section-2,
+.checkout-autoplay .checkout-section-3 {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
 }
 
-/* Stagger checkout sections inside the back panel */
-.revealed .pricing-autoplay .checkout-section-1 {
-  animation: s3ContentIn1 12s ease-out 2s infinite;
-}
-.revealed .pricing-autoplay .checkout-section-2 {
-  animation: s3ContentIn2 12s ease-out 2s infinite;
-}
-.revealed .pricing-autoplay .checkout-section-3 {
-  animation: s3ContentIn3 12s ease-out 2s infinite;
-}
+.checkout-autoplay .checkout-section-1 { transition-delay: 0.15s; }
+.checkout-autoplay .checkout-section-2 { transition-delay: 0.35s; }
+.checkout-autoplay .checkout-section-3 { transition-delay: 0.55s; }
 
-/* Front fades out at 38-43 %, back in at 43 %; reverses at 87-92 % */
-@keyframes s3FadeOut {
-  0%,  38%  { opacity: 1; }
-  43%, 87%  { opacity: 0; }
-  92%, 100% { opacity: 1; }
-}
-@keyframes s3FadeIn {
-  0%,  38%  { opacity: 0; }
-  43%, 87%  { opacity: 1; }
-  92%, 100% { opacity: 0; }
-}
-
-/* Content sections appear slightly after back panel, staggered ~0.12 s */
-@keyframes s3ContentIn1 {
-  0%,  40%  { opacity: 0; transform: translateY(10px); }
-  45%, 87%  { opacity: 1; transform: translateY(0); }
-  92%, 100% { opacity: 0; transform: translateY(10px); }
-}
-@keyframes s3ContentIn2 {
-  0%,  41%  { opacity: 0; transform: translateY(10px); }
-  46%, 87%  { opacity: 1; transform: translateY(0); }
-  92%, 100% { opacity: 0; transform: translateY(10px); }
-}
-@keyframes s3ContentIn3 {
-  0%,  42%  { opacity: 0; transform: translateY(10px); }
-  47%, 87%  { opacity: 1; transform: translateY(0); }
-  92%, 100% { opacity: 0; transform: translateY(10px); }
+.revealed .checkout-autoplay .checkout-section-1,
+.revealed .checkout-autoplay .checkout-section-2,
+.revealed .checkout-autoplay .checkout-section-3 {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* Force white background on phone - override any other styles */
