@@ -43,6 +43,8 @@ SELECT
   COUNT(*)
     FILTER (WHERE "eventName" = 'Navbar_CTA_Clicked')     AS navbar_cta_clicks,
   COUNT(*)
+    FILTER (WHERE "eventName" = 'Pricing_Section_Viewed') AS pricing_section_views,
+  COUNT(*)
     FILTER (WHERE "eventName" = 'Chat_Widget_Opened')     AS chat_opens,
   COUNT(*)
     FILTER (WHERE "eventName" = 'Signup_Page_Viewed')     AS signup_page_views,
