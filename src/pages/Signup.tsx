@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useAnalytics } from '../hooks/useAnalytics';
+import { MARKETING } from '../lib/analyticsEvents';
 
 const countries = [
   { code: 'US', name: 'United States', nameHe: 'ארצות הברית' },
@@ -59,7 +60,7 @@ export default function Signup() {
   const { t, language, direction } = useLanguage();
   const { register } = useAuth();
   const navigate = useNavigate();
-  const { identify } = useAnalytics();
+  const { identify, track } = useAnalytics();
   const isHe = language === 'he';
   const homePath = isHe ? '/he' : '/';
   const loginPath = isHe ? '/he/login' : '/login';
@@ -121,6 +122,14 @@ export default function Signup() {
   };
 
   const strengthConfig = getStrengthConfig();
+
+  useEffect(() => {
+    track(MARKETING.SIGNUP_PAGE_VIEWED, 'MARKETING', {
+      referrer: document.referrer || undefined,
+      source_page: window.location.pathname,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
