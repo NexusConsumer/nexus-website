@@ -7,6 +7,8 @@ import Hero from '../components/Hero';
 import PartnerBubbles from '../components/PartnerBubbles';
 import LanguageSwitcher from '../components/LanguageSwitcher';
 import { useSectionVisible } from '../hooks/useSectionVisible';
+import { useAnalytics } from '../hooks/useAnalytics';
+import { MARKETING } from '../lib/analyticsEvents';
 
 // Lazy load heavy components below the fold
 const Features = lazy(() => import('../components/Features'));
@@ -212,6 +214,7 @@ function FooterSkeleton() {
 export default function HomeContent() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const { t, direction, language } = useLanguage();
+  const { track } = useAnalytics();
 
   // Differential loading: each section's JS chunk only loads when the user
   // is within rootMargin distance of that section. '400px 0px' means 400px
@@ -444,6 +447,7 @@ export default function HomeContent() {
             <Link
               to={language === 'he' ? '/he/signup' : '/signup'}
               className="group inline-flex items-center gap-2 bg-stripe-purple hover:bg-stripe-purple/90 text-white font-medium px-8 py-4 rounded-lg transition-all hover:shadow-xl hover:shadow-stripe-purple/25 text-sm"
+              onClick={() => track(MARKETING.HERO_CTA_CLICKED, 'MARKETING', { button_text: t.cta.startNow, variant: 'bottom_cta' })}
             >
               {t.cta.startNow}
               <span className="inline-block w-0 overflow-hidden group-hover:w-5 transition-all duration-300 ease-out">
@@ -453,6 +457,7 @@ export default function HomeContent() {
             <a
               href="#"
               className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-900 font-medium px-8 py-4 rounded-lg transition-all text-sm"
+              onClick={(e) => { e.preventDefault(); track(MARKETING.CHAT_WIDGET_OPENED, 'MARKETING', { source_page: window.location.pathname, trigger_type: 'manual' }); setIsChatOpen(true); }}
             >
               {t.cta.contactSales}
             </a>
