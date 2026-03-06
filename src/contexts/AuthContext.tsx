@@ -27,23 +27,24 @@ interface RegisterData {
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<AuthUser>;
   register: (data: RegisterData) => Promise<{ requiresVerification: true; email: string } | void>;
-  googleLogin: (accessToken: string) => Promise<void>;
+  googleLogin: (accessToken: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const googleLogin = useCallback(async (accessToken: string) => {
+  const googleLogin = useCallback(async (accessToken: string): Promise<AuthUser> => {
     const data = await api.post<{ accessToken: string }>('/api/auth/google', { accessToken });
     setAccessToken(data.accessToken);
     const profile = await api.get<AuthUser>('/api/auth/me');
     setUser(profile);
+    return profile;
   }, []);
 
   useEffect(() => {
@@ -87,11 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = useCallback(async (email: string, password: string, rememberMe = false) => {
+  const login = useCallback(async (email: string, password: string, rememberMe = false): Promise<AuthUser> => {
     const data = await api.post<{ accessToken: string }>('/api/auth/login', { email, password, rememberMe });
     setAccessToken(data.accessToken);
     const profile = await api.get<AuthUser>('/api/auth/me');
     setUser(profile);
+    return profile;
   }, []);
 
   const register = useCallback(async (registerData: RegisterData) => {
