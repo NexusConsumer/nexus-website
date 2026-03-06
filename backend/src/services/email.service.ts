@@ -44,8 +44,8 @@ async function sendMail(options: { to: string; toName?: string; subject: string;
     const plainText = options.text ?? options.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const body = JSON.stringify({
       email: {
-        html: Buffer.from(options.html, 'utf8').toString('base64'),
-        text: Buffer.from(plainText, 'utf8').toString('base64'),
+        html: options.html,
+        text: plainText,
         subject: options.subject,
         from: { name: FROM_NAME, email: FROM_EMAIL },
         to: [{ name: options.toName ?? options.to, email: options.to }],
@@ -122,134 +122,57 @@ export async function sendVerificationEmail(
     ? `ברוכים הבאים לנקסוס!\n\nיש לאמת את כתובת המייל כדי להפעיל את החשבון:\n\n${verifyUrl}\n\nאם לא יצרת חשבון, ניתן להתעלם מהמייל.`
     : `Welcome to Nexus!\n\nPlease verify your email to activate your account:\n\n${verifyUrl}\n\nIf you didn't create an account, you can ignore this email.`;
 
-  const html = isHe
-    ? `<!doctype html>
-<html lang="he" dir="rtl">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ברוכים הבאים לנקסוס</title></head>
-<body style="margin:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;direction:rtl;">
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td align="center" style="padding:40px 20px;">
-<table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:14px;padding:40px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
-<tr>
-<td align="center">
-<img src="${logoUrl}" width="120" style="margin-bottom:30px;" alt="Nexus">
-<h1 style="margin:0;color:#111;font-size:26px;">ברוכים הבאים לנקסוס</h1>
-<p style="margin:18px 0 0 0;color:#555;font-size:16px;line-height:1.6;">
-עוד רגע מתחילים.<br>
-יש רק לאמת את כתובת המייל כדי להפעיל את החשבון.
-</p>
-</td>
-</tr>
-<tr>
-<td align="center" style="padding:30px 0;">
-<a href="${verifyUrl}" style="background:#111;color:white;padding:15px 36px;border-radius:10px;font-size:16px;font-weight:bold;text-decoration:none;display:inline-block;">
-אימות והמשך לנקסוס
-</a>
-</td>
-</tr>
-<tr>
-<td>
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:10px;padding:18px;margin-top:10px;">
-<tr>
-<td style="font-size:14px;color:#333;line-height:1.9;">
-<strong>לאחר האימות תוכלו:</strong>
-<br><br>
-✔ להקים מועדון הטבות דיגיטלי
-<br>
-✔ להוסיף הטבות לחברי הקהילה
-<br>
-✔ לנהל משתמשים והרשאות
-<br>
-✔ לעקוב אחרי פעילות ורכישות
-</td>
-</tr>
-</table>
-</td>
-</tr>
-<tr>
-<td align="center" style="padding-top:30px;">
-<div style="font-size:13px;color:#777;line-height:1.7;">
-שלב 1 ✓ יצירת חשבון
-<br>
-שלב 2 → אימות מייל
-<br>
-שלב 3 התחלה בדאשבורד
-</div>
-</td>
-</tr>
-<tr>
-<td align="center">
-<p style="font-size:13px;color:#888;margin-top:25px;">
-אם הכפתור לא עובד ניתן להיכנס דרך הקישור:
-</p>
-<p style="font-size:13px;color:#444;word-break:break-all;">
-${verifyUrl}
-</p>
-</td>
-</tr>
-<tr>
-<td align="center">
-<p style="font-size:12px;color:#999;margin-top:30px;line-height:1.6;">
-קישור זה תקף לזמן מוגבל מטעמי אבטחה.<br>
-אם לא ניסית ליצור חשבון ניתן להתעלם מהמייל.
-</p>
-</td>
-</tr>
-</table>
-</td>
-</tr>
-</table>
-</body>
-</html>`
-    : `<!doctype html>
-<html lang="en" dir="ltr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0">
+  const html = isHe ? `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f5f7fb" dir="rtl" style="font-family:Arial,Helvetica,sans-serif;">
 <tr><td align="center" style="padding:40px 20px;">
-<table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:14px;padding:40px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
-<tr><td align="center">
-  <img src="${logoUrl}" width="120" style="margin-bottom:30px;" alt="Nexus" />
-  <h1 style="margin:0;color:#111;font-size:26px;">Welcome to Nexus</h1>
-  <p style="margin:18px 0 0 0;color:#555;font-size:16px;line-height:1.6;">
-    Almost there.<br>Just verify your email to activate your account.
-  </p>
+<table width="560" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="border:1px solid #e5e7eb;">
+<tr><td align="center" style="padding:40px 32px 0 32px;">
+  <img src="${logoUrl}" width="110" height="auto" alt="Nexus" style="display:block;margin:0 auto 24px;" />
+  <h1 style="margin:0;color:#0a2540;font-size:24px;font-weight:700;">ברוכים הבאים לנקסוס</h1>
+  <p style="margin:16px 0 0;color:#425466;font-size:15px;line-height:1.6;">עוד רגע מתחילים. יש לאמת את כתובת המייל כדי להפעיל את החשבון.</p>
 </td></tr>
-<tr><td align="center" style="padding:30px 0;">
-  <a href="${verifyUrl}" style="background:#111;color:white;padding:15px 36px;border-radius:10px;font-size:16px;font-weight:bold;text-decoration:none;display:inline-block;">
-    Verify &amp; Continue to Nexus
-  </a>
+<tr><td align="center" style="padding:28px 32px;">
+  <a href="${verifyUrl}" style="background-color:#635bff;color:#ffffff;padding:14px 32px;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">אימות והמשך לנקסוס</a>
 </td></tr>
-<tr><td>
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:10px;padding:18px;margin-top:10px;">
-  <tr><td style="font-size:14px;color:#333;line-height:1.9;">
-    <strong>After verifying you can:</strong><br><br>
-    ✔ Set up a digital loyalty club<br>
-    ✔ Add perks for your community members<br>
-    ✔ Manage users and permissions<br>
-    ✔ Track activity and purchases
-  </td></tr></table>
+<tr><td style="padding:0 32px 24px;" bgcolor="#f8fafc">
+  <p style="margin:0 0 8px;color:#0a2540;font-size:13px;font-weight:700;">לאחר האימות תוכלו:</p>
+  <p style="margin:4px 0;color:#425466;font-size:13px;">&#10003; להקים מועדון הטבות דיגיטלי</p>
+  <p style="margin:4px 0;color:#425466;font-size:13px;">&#10003; לנהל משתמשים והרשאות</p>
+  <p style="margin:4px 0;color:#425466;font-size:13px;">&#10003; לעקוב אחרי פעילות ורכישות</p>
 </td></tr>
-<tr><td align="center" style="padding-top:30px;">
-  <div style="font-size:13px;color:#777;line-height:1.7;">
-    Step 1 ✓ Account created<br>
-    Step 2 → Verify email<br>
-    Step 3 &nbsp;&nbsp; Start on dashboard
-  </div>
-</td></tr>
-<tr><td align="center">
-  <p style="font-size:13px;color:#888;margin-top:25px;">If the button doesn't work, use this link:</p>
-  <p style="font-size:13px;color:#444;word-break:break-all;">${verifyUrl}</p>
-</td></tr>
-<tr><td align="center">
-  <p style="font-size:12px;color:#999;margin-top:30px;line-height:1.6;">
-    This link is valid for a limited time for security reasons.<br>If you didn't create an account, you can ignore this email.
-  </p>
+<tr><td align="center" style="padding:20px 32px 32px;">
+  <p style="margin:0 0 8px;color:#888;font-size:12px;">אם הכפתור לא עובד, הכנסו ישירות:</p>
+  <p style="margin:0;color:#635bff;font-size:12px;word-break:break-all;">${verifyUrl}</p>
+  <p style="margin:16px 0 0;color:#aaa;font-size:11px;">קישור זה תקף ל-24 שעות. אם לא יצרתם חשבון, ניתן להתעלם.</p>
 </td></tr>
 </table>
-</td></tr></table>
-</body></html>`;
+</td></tr>
+</table>` : `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f5f7fb" style="font-family:Arial,Helvetica,sans-serif;">
+<tr><td align="center" style="padding:40px 20px;">
+<table width="560" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="border:1px solid #e5e7eb;">
+<tr><td align="center" style="padding:40px 32px 0 32px;">
+  <img src="${logoUrl}" width="110" height="auto" alt="Nexus" style="display:block;margin:0 auto 24px;" />
+  <h1 style="margin:0;color:#0a2540;font-size:24px;font-weight:700;">Welcome to Nexus</h1>
+  <p style="margin:16px 0 0;color:#425466;font-size:15px;line-height:1.6;">Almost there. Just verify your email to activate your account.</p>
+</td></tr>
+<tr><td align="center" style="padding:28px 32px;">
+  <a href="${verifyUrl}" style="background-color:#635bff;color:#ffffff;padding:14px 32px;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">Verify &amp; Continue to Nexus</a>
+</td></tr>
+<tr><td style="padding:0 32px 24px;" bgcolor="#f8fafc">
+  <p style="margin:0 0 8px;color:#0a2540;font-size:13px;font-weight:700;">After verifying you can:</p>
+  <p style="margin:4px 0;color:#425466;font-size:13px;">&#10003; Set up a digital loyalty club</p>
+  <p style="margin:4px 0;color:#425466;font-size:13px;">&#10003; Manage users and permissions</p>
+  <p style="margin:4px 0;color:#425466;font-size:13px;">&#10003; Track activity and purchases</p>
+</td></tr>
+<tr><td align="center" style="padding:20px 32px 32px;">
+  <p style="margin:0 0 8px;color:#888;font-size:12px;">If the button does not work, use this link:</p>
+  <p style="margin:0;color:#635bff;font-size:12px;word-break:break-all;">${verifyUrl}</p>
+  <p style="margin:16px 0 0;color:#aaa;font-size:11px;">This link is valid for 24 hours. If you did not create an account, you can ignore this email.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>`;
 
   await sendMail({ to: email, toName: fullName, subject, text, html });
 }
@@ -274,69 +197,45 @@ export async function sendPasswordResetEmail(
     ? `שלום ${fullName},\n\nקיבלנו בקשה לאיפוס הסיסמה שלך.\n\nלאיפוס הסיסמה לחץ על הקישור:\n\n${resetUrl}\n\nהקישור בתוקף לשעה אחת.\n\nאם לא ביקשת לאפס סיסמה, אנא התעלם מהאימייל הזה.`
     : `Hi ${fullName},\n\nWe received a request to reset your password.\n\nClick the link to reset your password:\n\n${resetUrl}\n\nThis link is valid for one hour.\n\nIf you didn't request a password reset, please ignore this email.`;
 
-  const html = isHe
-    ? `<!doctype html>
-<html lang="he" dir="rtl">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;direction:rtl;">
-<table width="100%" cellpadding="0" cellspacing="0">
+  const html = isHe ? `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f5f7fb" dir="rtl" style="font-family:Arial,Helvetica,sans-serif;">
 <tr><td align="center" style="padding:40px 20px;">
-<table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:14px;padding:40px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
-<tr><td align="center">
-  <img src="${logoUrl}" width="120" style="margin-bottom:30px;" alt="Nexus" />
-  <h1 style="margin:0;color:#111;font-size:26px;">איפוס סיסמה</h1>
-  <p style="margin:18px 0 0 0;color:#555;font-size:16px;line-height:1.6;">
-    שלום ${fullName},<br>קיבלנו בקשה לאיפוס הסיסמה שלך.
-  </p>
+<table width="560" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="border:1px solid #e5e7eb;">
+<tr><td align="center" style="padding:40px 32px 0 32px;">
+  <img src="${logoUrl}" width="110" height="auto" alt="Nexus" style="display:block;margin:0 auto 24px;" />
+  <h1 style="margin:0;color:#0a2540;font-size:24px;font-weight:700;">איפוס סיסמה</h1>
+  <p style="margin:16px 0 0;color:#425466;font-size:15px;line-height:1.6;">שלום ${fullName}, קיבלנו בקשה לאיפוס הסיסמה שלך.</p>
 </td></tr>
-<tr><td align="center" style="padding:30px 0;">
-  <a href="${resetUrl}" style="background:#111;color:white;padding:15px 36px;border-radius:10px;font-size:16px;font-weight:bold;text-decoration:none;display:inline-block;">
-    איפוס סיסמה
-  </a>
+<tr><td align="center" style="padding:28px 32px;">
+  <a href="${resetUrl}" style="background-color:#635bff;color:#ffffff;padding:14px 32px;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">איפוס סיסמה</a>
 </td></tr>
-<tr><td align="center">
-  <p style="font-size:13px;color:#888;margin-top:25px;">אם הכפתור לא עובד ניתן להיכנס דרך הקישור:</p>
-  <p style="font-size:13px;color:#444;word-break:break-all;">${resetUrl}</p>
-</td></tr>
-<tr><td align="center">
-  <p style="font-size:12px;color:#999;margin-top:30px;line-height:1.6;">
-    הקישור תקף לשעה אחת מטעמי אבטחה.<br>אם לא ביקשת לאפס סיסמה, ניתן להתעלם מהמייל.
-  </p>
+<tr><td align="center" style="padding:20px 32px 32px;">
+  <p style="margin:0 0 8px;color:#888;font-size:12px;">אם הכפתור לא עובד, הכנסו ישירות:</p>
+  <p style="margin:0;color:#635bff;font-size:12px;word-break:break-all;">${resetUrl}</p>
+  <p style="margin:16px 0 0;color:#aaa;font-size:11px;">הקישור תקף לשעה אחת. אם לא ביקשת לאפס סיסמה, ניתן להתעלם.</p>
 </td></tr>
 </table>
-</td></tr></table>
-</body></html>`
-    : `<!doctype html>
-<html lang="en" dir="ltr">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0">
+</td></tr>
+</table>` : `
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f5f7fb" style="font-family:Arial,Helvetica,sans-serif;">
 <tr><td align="center" style="padding:40px 20px;">
-<table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:14px;padding:40px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
-<tr><td align="center">
-  <img src="${logoUrl}" width="120" style="margin-bottom:30px;" alt="Nexus" />
-  <h1 style="margin:0;color:#111;font-size:26px;">Password Reset</h1>
-  <p style="margin:18px 0 0 0;color:#555;font-size:16px;line-height:1.6;">
-    Hi ${fullName},<br>We received a request to reset your password.
-  </p>
+<table width="560" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="border:1px solid #e5e7eb;">
+<tr><td align="center" style="padding:40px 32px 0 32px;">
+  <img src="${logoUrl}" width="110" height="auto" alt="Nexus" style="display:block;margin:0 auto 24px;" />
+  <h1 style="margin:0;color:#0a2540;font-size:24px;font-weight:700;">Password Reset</h1>
+  <p style="margin:16px 0 0;color:#425466;font-size:15px;line-height:1.6;">Hi ${fullName}, we received a request to reset your password.</p>
 </td></tr>
-<tr><td align="center" style="padding:30px 0;">
-  <a href="${resetUrl}" style="background:#111;color:white;padding:15px 36px;border-radius:10px;font-size:16px;font-weight:bold;text-decoration:none;display:inline-block;">
-    Reset Password
-  </a>
+<tr><td align="center" style="padding:28px 32px;">
+  <a href="${resetUrl}" style="background-color:#635bff;color:#ffffff;padding:14px 32px;font-size:15px;font-weight:700;text-decoration:none;display:inline-block;">Reset Password</a>
 </td></tr>
-<tr><td align="center">
-  <p style="font-size:13px;color:#888;margin-top:25px;">If the button doesn't work, use this link:</p>
-  <p style="font-size:13px;color:#444;word-break:break-all;">${resetUrl}</p>
-</td></tr>
-<tr><td align="center">
-  <p style="font-size:12px;color:#999;margin-top:30px;line-height:1.6;">
-    This link is valid for one hour for security reasons.<br>If you didn't request a password reset, you can ignore this email.
-  </p>
+<tr><td align="center" style="padding:20px 32px 32px;">
+  <p style="margin:0 0 8px;color:#888;font-size:12px;">If the button does not work, use this link:</p>
+  <p style="margin:0;color:#635bff;font-size:12px;word-break:break-all;">${resetUrl}</p>
+  <p style="margin:16px 0 0;color:#aaa;font-size:11px;">This link is valid for one hour. If you did not request a password reset, you can ignore this email.</p>
 </td></tr>
 </table>
-</td></tr></table>
-</body></html>`;
+</td></tr>
+</table>`;
 
   await sendMail({ to: email, toName: fullName, subject, text, html });
 }
