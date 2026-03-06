@@ -1,11 +1,11 @@
 -- AlterTable: User — add phone, jobTitle, onboardingDone
 ALTER TABLE "User"
-  ADD COLUMN "phone"          TEXT,
-  ADD COLUMN "jobTitle"       TEXT,
-  ADD COLUMN "onboardingDone" BOOLEAN NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS "phone"          TEXT,
+  ADD COLUMN IF NOT EXISTS "jobTitle"       TEXT,
+  ADD COLUMN IF NOT EXISTS "onboardingDone" BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable: Account — add websiteUrl, businessDesc, useCases
 ALTER TABLE "Account"
-  ADD COLUMN "websiteUrl"   TEXT,
-  ADD COLUMN "businessDesc" TEXT,
-  ADD COLUMN "useCases"     TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
+  ADD COLUMN IF NOT EXISTS "websiteUrl"   TEXT,
+  ADD COLUMN IF NOT EXISTS "businessDesc" TEXT,
+  ADD COLUMN IF NOT EXISTS "useCases"     TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
