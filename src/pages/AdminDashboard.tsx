@@ -541,7 +541,7 @@ export default function AdminDashboard() {
             </div>
             <div>
               <div className="text-3xl font-bold text-white">
-                ${(revenue?.total_revenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                ₪{(revenue?.total_revenue ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
               <div className="text-xs text-white/40 mt-1">{revenue?.total_transactions ?? 0} transactions</div>
             </div>
