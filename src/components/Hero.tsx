@@ -71,15 +71,7 @@ export default function Hero() {
                     <ArrowRight size={16} className={`inline ${direction === 'rtl' ? 'scale-x-[-1]' : ''}`} />
                   </span>
                 </Link>
-                <GoogleSignIn
-                  variant="hero"
-                  onSuccess={(user) => {
-                    console.log('Google login success:', user);
-                  }}
-                  onError={() => {
-                    console.log('Google login failed');
-                  }}
-                />
+                <GoogleSignIn variant="hero" />
               </div>
             </div>
 
