@@ -427,19 +427,18 @@
 }
 
 .pricing-card {
-  width: 490px;
-  min-width: 490px;
-  max-width: 490px;
-  height: 444px;
-  min-height: 444px;
-  background: #f9fafb;
+  width: 620px;
+  min-width: 620px;
+  max-width: 620px;
+  min-height: 420px;
+  background: transparent;
   border-radius: 0;
-  padding: 24px 16px;
+  padding: 16px 0;
   box-shadow: none;
   border: none;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
   position: relative;
 }
@@ -699,24 +698,33 @@
   }
 }
 
-/* RTL: Mirror phone animation for Hebrew version */
+/* RTL: Gentle float animation for Hebrew version (no horizontal slide) */
 [dir="rtl"] .payment-card-expandable:hover .payment-phone {
-  animation: phoneSlideOutRTL 16s ease-in-out infinite;
+  animation: phoneFloat 4s ease-in-out infinite;
 }
 
-@keyframes phoneSlideOutRTL {
-  0% {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  50% {
-    opacity: 1;
-    transform: translateX(-80px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0);
-  }
+[dir="rtl"] .payment-card-expandable:not(:hover) .payment-phone {
+  animation: none;
+  transform: translateY(0);
+}
+
+/* RTL Hero: autoplay all animations without requiring hover.
+   IMPORTANT: Do NOT use !important on transform/opacity here — it overrides keyframe values and freezes the animation. */
+[dir="rtl"] .payments-hero-anim .payment-phone {
+  animation: phoneFloat 4s ease-in-out infinite !important;
+}
+
+[dir="rtl"] .payments-hero-anim .payment-sheet {
+  animation: sheetSlideIn 10s ease-in-out infinite !important;
+}
+
+[dir="rtl"] .payments-hero-anim .payment-overlay {
+  animation: overlayFadeIn 10s ease-in-out infinite !important;
+}
+
+@keyframes phoneFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
 }
 
 @keyframes panelSlideIn {
@@ -754,15 +762,16 @@
 
 /* Checkout Panel Styles */
 .checkout-card {
-  width: 490px;
-  min-width: 490px;
-  max-width: 490px;
-  height: 444px;
-  min-height: 444px;
-  background: #ffffff;
+  width: 620px;
+  min-width: 620px;
+  max-width: 620px;
+  min-height: 420px;
+  background: transparent;
   border-radius: 0;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
+  box-shadow: none;
+  border: none;
 }
 
 /* Glass Card Effect */
@@ -942,6 +951,56 @@
   }
 }
 
+/* ── Staggered pricing plan entrance — triggered by parent section.revealed ── */
+.pricing-autoplay .pricing-plan {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.pricing-autoplay .pricing-plan.plan-1 { transition-delay: 0.15s; }
+.pricing-autoplay .pricing-plan.plan-2 { transition-delay: 0.35s; }
+.pricing-autoplay .pricing-plan.plan-3 { transition-delay: 0.55s; }
+
+.pricing-autoplay .popular-badge {
+  opacity: 0;
+  transition: opacity 0.4s ease-out 0.75s, transform 0.4s ease-out 0.75s;
+}
+
+/* When any ancestor has .revealed, plans slide up and fade in */
+.revealed .pricing-autoplay .pricing-plan {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.revealed .pricing-autoplay .pricing-plan.plan-featured {
+  transform: translateY(0) scale(1.05);
+}
+
+.revealed .pricing-autoplay .popular-badge {
+  opacity: 1;
+}
+
+/* ── Staggered checkout section entrance — triggered by parent section.revealed ── */
+.checkout-autoplay .checkout-section-1,
+.checkout-autoplay .checkout-section-2,
+.checkout-autoplay .checkout-section-3 {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+}
+
+.checkout-autoplay .checkout-section-1 { transition-delay: 0.15s; }
+.checkout-autoplay .checkout-section-2 { transition-delay: 0.35s; }
+.checkout-autoplay .checkout-section-3 { transition-delay: 0.55s; }
+
+.revealed .checkout-autoplay .checkout-section-1,
+.revealed .checkout-autoplay .checkout-section-2,
+.revealed .checkout-autoplay .checkout-section-3 {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* Force white background on phone - override any other styles */
 .payment-phone {
   background: #ffffff !important;
@@ -953,4 +1012,114 @@
 
 .phone-screen {
   background: #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Dynamic / continuous animations for standalone panels (no frame)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Pricing panel: gentle float + blob drift + featured plan glow pulse ── */
+.pricing-dynamic {
+  animation: pricingFloat 5s ease-in-out infinite;
+}
+
+@keyframes pricingFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+/* Blobs slowly drift when the panel is visible */
+.pricing-dynamic .pricing-bg-blob-1 {
+  animation: blobDrift1 8s ease-in-out infinite;
+}
+.pricing-dynamic .pricing-bg-blob-2 {
+  animation: blobDrift2 10s ease-in-out infinite;
+}
+
+@keyframes blobDrift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.08; }
+  50%      { transform: translate(20px, 15px) scale(1.15); opacity: 0.14; }
+}
+@keyframes blobDrift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.08; }
+  50%      { transform: translate(-15px, -10px) scale(1.1); opacity: 0.12; }
+}
+
+/* Featured plan: subtle glow pulse */
+.pricing-dynamic .plan-featured {
+  animation: featuredGlow 3s ease-in-out infinite;
+}
+
+@keyframes featuredGlow {
+  0%, 100% { box-shadow: 0 20px 40px rgba(99, 91, 255, 0.15); }
+  50%      { box-shadow: 0 24px 50px rgba(99, 91, 255, 0.28); }
+}
+
+/* Featured plan button: subtle pulse */
+.pricing-dynamic .plan-button-primary {
+  animation: btnPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes btnPulse {
+  0%, 100% { box-shadow: 0 4px 12px rgba(99, 91, 255, 0.25); }
+  50%      { box-shadow: 0 6px 20px rgba(99, 91, 255, 0.45); }
+}
+
+
+/* ── Checkout panel: gentle float + button glow + shimmer on glass cards ── */
+.checkout-dynamic {
+  animation: checkoutFloat 6s ease-in-out infinite;
+}
+
+.checkout-dynamic .checkout-card {
+  border-radius: 0;
+}
+
+@keyframes checkoutFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+
+/* Checkout "Complete Purchase" button glow */
+.checkout-dynamic .checkout-section-3 button {
+  animation: checkoutBtnGlow 3s ease-in-out infinite;
+}
+
+@keyframes checkoutBtnGlow {
+  0%, 100% { box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25); }
+  50%      { box-shadow: 0 8px 28px rgba(139, 92, 246, 0.5); }
+}
+
+/* Shimmer sweep across glass cards */
+.checkout-dynamic .glass-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.checkout-dynamic .glass-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  animation: shimmerSweep 4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.checkout-dynamic .glass-card:nth-child(2)::after,
+.checkout-dynamic .checkout-section-2::after {
+  animation-delay: 1.3s;
+}
+
+.checkout-dynamic .checkout-section-3::after {
+  animation-delay: 2.6s;
+}
+
+@keyframes shimmerSweep {
+  0%, 60%  { left: -100%; }
+  80%      { left: 120%; }
+  100%     { left: 120%; }
 }

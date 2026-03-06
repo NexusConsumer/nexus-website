@@ -1,16 +1,25 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { LanguageProvider } from './i18n/LanguageContext';
+
+const ContactSalesButton = lazy(() => import('./components/ContactSalesButton'));
+const LiveChat            = lazy(() => import('./components/LiveChat'));
 
 // ─── Lazy-load every route ────────────────────────────────
 // Each page becomes a separate chunk loaded only when navigated to.
 // Home/HomeHe are most critical — still lazy but browsers prefetch them.
-const Home     = lazy(() => import('./pages/Home'));
-const HomeHe   = lazy(() => import('./pages/HomeHe'));
-const Signup   = lazy(() => import('./pages/Signup'));
-const Login    = lazy(() => import('./pages/Login'));
-const SignupHe = lazy(() => import('./pages/SignupHe'));
-const LoginHe  = lazy(() => import('./pages/LoginHe'));
+const Home               = lazy(() => import('./pages/Home'));
+const HomeHe             = lazy(() => import('./pages/HomeHe'));
+const Signup             = lazy(() => import('./pages/Signup'));
+const Login              = lazy(() => import('./pages/Login'));
+const SignupHe           = lazy(() => import('./pages/SignupHe'));
+const LoginHe            = lazy(() => import('./pages/LoginHe'));
+const WorkspaceSetupPage = lazy(() => import('./pages/WorkspaceSetupPage'));
+const VerifyEmailPage    = lazy(() => import('./pages/VerifyEmailPage'));
+const ForgotPassword     = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword      = lazy(() => import('./pages/ResetPassword'));
+const PartnersPage       = lazy(() => import('./pages/PartnersPage'));
+const PaymentsPage       = lazy(() => import('./pages/PaymentsPage'));
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -47,6 +56,31 @@ function PageLoader() {
   );
 }
 
+/** Chat widget rendered outside Routes so it persists across navigation. */
+function ChatWidget() {
+  const { pathname } = useLocation();
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const language = pathname.startsWith('/he') ? 'he' : 'en';
+
+  return (
+    <LanguageProvider language={language}>
+      {!isChatOpen && (
+        <Suspense fallback={null}>
+          <ContactSalesButton onClick={() => setIsChatOpen(true)} />
+        </Suspense>
+      )}
+      {isChatOpen && (
+        <Suspense fallback={null}>
+          <LiveChat
+            onClose={() => setIsChatOpen(false)}
+            onMinimize={() => setIsChatOpen(false)}
+          />
+        </Suspense>
+      )}
+    </LanguageProvider>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -57,10 +91,21 @@ function App() {
           <Route path="/he"       element={<HomeHe />} />
           <Route path="/signup"   element={<LanguageProvider language="en"><Signup /></LanguageProvider>} />
           <Route path="/login"    element={<LanguageProvider language="en"><Login /></LanguageProvider>} />
-          <Route path="/he/signup" element={<SignupHe />} />
-          <Route path="/he/login"  element={<LoginHe />} />
+          <Route path="/he/signup"   element={<SignupHe />} />
+          <Route path="/he/login"    element={<LoginHe />} />
+          <Route path="/workspace"    element={<LanguageProvider language="en"><WorkspaceSetupPage /></LanguageProvider>} />
+          <Route path="/he/workspace" element={<LanguageProvider language="he"><WorkspaceSetupPage /></LanguageProvider>} />
+          <Route path="/verify-email"     element={<LanguageProvider language="en"><VerifyEmailPage /></LanguageProvider>} />
+          <Route path="/forgot-password"  element={<LanguageProvider language="en"><ForgotPassword /></LanguageProvider>} />
+          <Route path="/he/forgot-password" element={<LanguageProvider language="he"><ForgotPassword /></LanguageProvider>} />
+          <Route path="/reset-password"   element={<LanguageProvider language="en"><ResetPassword /></LanguageProvider>} />
+          <Route path="/partners"    element={<LanguageProvider language="en"><PartnersPage /></LanguageProvider>} />
+          <Route path="/he/partners" element={<LanguageProvider language="he"><PartnersPage /></LanguageProvider>} />
+          <Route path="/payments"    element={<LanguageProvider language="en"><PaymentsPage /></LanguageProvider>} />
+          <Route path="/he/payments" element={<LanguageProvider language="he"><PaymentsPage /></LanguageProvider>} />
         </Routes>
       </Suspense>
+      <ChatWidget />
     </BrowserRouter>
   );
 }

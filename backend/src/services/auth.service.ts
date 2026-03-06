@@ -17,23 +17,76 @@ export async function register(
   },
   meta: { userAgent?: string; ipAddress?: string } = {},
 ) {
-  const existing = await prisma.user.findUnique({ where: { email: data.email } });
-  if (existing) throw createError('Email already registered', 409);
+  const email = data.email.toLowerCase().trim();
+  const fullName = data.fullName.trim();
+
+  // Reject if a verified account already exists
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (existingUser) throw createError('Email already registered', 409);
 
   const passwordHash = await hashPassword(data.password);
-  const user = await prisma.user.create({
+  const rawVerificationToken = generateToken(48);
+  const tokenHash = hashToken(rawVerificationToken);
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+  // Store as a pending registration — user row is NOT created until email is confirmed
+  await prisma.pendingRegistration.upsert({
+    where: { email },
+    update: { passwordHash, fullName, country: data.country ?? 'IL', emailUpdates: data.emailUpdates ?? true, tokenHash, expiresAt },
+    create: { email, passwordHash, fullName, country: data.country ?? 'IL', emailUpdates: data.emailUpdates ?? true, tokenHash, expiresAt },
+  });
+
+  return { email, fullName, rawVerificationToken };
+}
+
+export async function verifyEmail(
+  rawToken: string,
+  meta: { userAgent?: string; ipAddress?: string } = {},
+) {
+  const tokenHash = hashToken(rawToken);
+  const pending = await prisma.pendingRegistration.findUnique({ where: { tokenHash } });
+
+  if (!pending || pending.expiresAt < new Date()) {
+    throw createError('Invalid or expired verification link', 400);
+  }
+
+  // Atomically: create the verified user and delete the pending record
+  const user = await prisma.$transaction(async (tx) => {
+    const newUser = await tx.user.create({
+      data: {
+        email: pending.email,
+        fullName: pending.fullName,
+        passwordHash: pending.passwordHash,
+        country: pending.country,
+        emailUpdates: pending.emailUpdates,
+        provider: 'EMAIL',
+        emailVerified: true,
+        lastLoginAt: new Date(),
+      },
+    });
+    await tx.pendingRegistration.delete({ where: { id: pending.id } });
+    return newUser;
+  });
+
+  return issueTokens(user.id, user.email, user.role, false, meta);
+}
+
+export async function resendVerification(email: string) {
+  const pending = await prisma.pendingRegistration.findUnique({
+    where: { email: email.toLowerCase().trim() },
+  });
+  if (!pending) return null; // either not registered or already verified (User row exists)
+
+  const rawToken = generateToken(48);
+  await prisma.pendingRegistration.update({
+    where: { id: pending.id },
     data: {
-      email: data.email.toLowerCase().trim(),
-      fullName: data.fullName.trim(),
-      passwordHash,
-      country: data.country ?? 'IL',
-      emailUpdates: data.emailUpdates ?? true,
-      provider: 'EMAIL',
+      tokenHash: hashToken(rawToken),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     },
   });
 
-  const tokens = await issueTokens(user.id, user.email, user.role, false, meta);
-  return { ...tokens, userId: user.id, email: user.email, fullName: user.fullName };
+  return { rawToken, email: pending.email, fullName: pending.fullName };
 }
 
 export async function login(
@@ -42,8 +95,14 @@ export async function login(
   rememberMe = false,
   meta: { userAgent?: string; ipAddress?: string } = {},
 ) {
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
-  if (!user || !user.passwordHash) throw createError('Invalid email or password', 401);
+  const normalizedEmail = email.toLowerCase().trim();
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (!user || !user.passwordHash) {
+    // Give a specific error if the user registered but hasn't verified yet
+    const pending = await prisma.pendingRegistration.findUnique({ where: { email: normalizedEmail } });
+    if (pending) throw createError('Please verify your email before logging in', 403);
+    throw createError('Invalid email or password', 401);
+  }
 
   const valid = await comparePassword(password, user.passwordHash);
   if (!valid) throw createError('Invalid email or password', 401);
@@ -102,12 +161,13 @@ export async function googleAuth(
 export async function googleAuthFromCode(
   code: string,
   meta: { userAgent?: string; ipAddress?: string } = {},
+  redirectUri: string = 'postmessage',
 ) {
   if (!env.GOOGLE_CLIENT_SECRET) throw createError('Google OAuth is not configured on this server', 503);
   const codeClient = new OAuth2Client(
     env.GOOGLE_CLIENT_ID,
     env.GOOGLE_CLIENT_SECRET,
-    'postmessage',
+    redirectUri,
   );
   const { tokens } = await codeClient.getToken(code);
   if (!tokens.id_token) throw createError('Google did not return an ID token', 401);

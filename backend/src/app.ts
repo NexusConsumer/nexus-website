@@ -17,6 +17,7 @@ import leadsRoutes from './routes/leads.routes';
 import adminRoutes from './routes/admin.routes';
 import webhookRoutes from './routes/webhook.routes';
 import paymentsRoutes from './routes/payments.routes';
+import partnersRoutes from './routes/partners.route';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -30,10 +31,10 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        'img-src': ["'self'", 'data:', 'https://flagcdn.com', 'https://lh3.googleusercontent.com', 'https://*.googleusercontent.com', 'https://*.google.com'],
+        'img-src': ["'self'", 'data:', 'https://flagcdn.com', 'https://lh3.googleusercontent.com', 'https://*.googleusercontent.com', 'https://*.google.com', 'https://static.wixstatic.com'],
         'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://accounts.google.com', 'https://cdn.jsdelivr.net', 'https://apis.google.com'],
         'frame-src': ["'self'", 'https://accounts.google.com'],
-        'connect-src': ["'self'", 'https://accounts.google.com', 'https://oauth2.googleapis.com', 'https://*.googleapis.com'],
+        'connect-src': ["'self'", 'https://nexus-website-production.up.railway.app', 'https://accounts.google.com', 'https://oauth2.googleapis.com', 'https://*.googleapis.com'],
         'style-src': ["'self'", "'unsafe-inline'", 'https://accounts.google.com', 'https://fonts.googleapis.com'],
         'font-src': ["'self'", 'https://fonts.gstatic.com'],
       },
@@ -72,6 +73,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/admin/ai', adminRoutes);
 app.use('/api/payments', paymentsRoutes);
+app.use('/api/partners', partnersRoutes);
 
 // ─── Serve frontend (SPA) ─────────────────────────────────
 const frontendDist = path.resolve(__dirname, '../public');

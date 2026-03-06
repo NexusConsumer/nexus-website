@@ -120,6 +120,21 @@ model PasswordReset {
   @@index([tokenHash])
 }
 
+model PendingRegistration {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  fullName     String
+  country      String   @default("IL")
+  emailUpdates Boolean  @default(true)
+  tokenHash    String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([tokenHash])
+  @@index([email])
+}
+
 // ─── CHAT ─────────────────────────────────────────────────────────
 
 model ChatSession {
@@ -152,6 +167,7 @@ model ChatMessage {
   text        String         @db.Text
   waMessageId String?
   status      String?
+  aiMetadata  Json?          // chunks used, similarity scores, token usage
   createdAt   DateTime       @default(now())
 
   rating AiRating?
@@ -172,14 +188,15 @@ model AiConfig {
 }
 
 model KnowledgeChunk {
-  id        String                       @id @default(cuid())
+  id        String   @id @default(cuid())
   title     String
-  content   String                       @db.Text
+  content   String   @db.Text
   source    String?
   language  String   @default("he")
   isActive  Boolean  @default(true)
-  createdAt DateTime                     @default(now())
-  updatedAt DateTime                     @updatedAt
+  embedding Float[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([isActive])
 }
@@ -191,6 +208,7 @@ model AiExample {
   category  String?
   language  String   @default("he")
   isActive  Boolean  @default(true)
+  embedding Float[]  // for similarity-matched retrieval
   createdAt DateTime @default(now())
 
   @@index([isActive])
@@ -206,6 +224,19 @@ model AiRating {
   correction String?     @db.Text
   ratedBy    String?
   createdAt  DateTime    @default(now())
+}
+
+model KnowledgeGap {
+  id        String   @id @default(cuid())
+  question  String   @db.Text
+  bestScore Float
+  chunkId   String?
+  sessionId String?
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([resolved])
+  @@index([createdAt])
 }
 
 // ─── ANALYTICS ────────────────────────────────────────────────────
@@ -339,4 +370,20 @@ model PaymentEvent {
   createdAt DateTime @default(now())
 
   @@index([orderId])
+}
+
+model Partner {
+  id           String   @id @default(cuid())
+  title        String
+  thumbnailUrl String
+  categories   String[]
+  discount     String?
+  description  String?
+  websiteUrl   String?
+  isActive     Boolean  @default(true)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive])
 }

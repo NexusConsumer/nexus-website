@@ -14,6 +14,7 @@ export default function Login() {
   const [showPasswordTooltip, setShowPasswordTooltip] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [shouldShake, setShouldShake] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState('');
   const [errors, setErrors] = useState({
     email: '',
     password: '',
@@ -25,6 +26,7 @@ export default function Login() {
   const isHe = language === 'he';
   const homePath = isHe ? '/he' : '/';
   const signupPath = isHe ? '/he/signup' : '/signup';
+  const workspacePath = isHe ? '/he/workspace' : '/workspace';
 
   const isFormValid = email.trim() !== '' && password.trim() !== '';
 
@@ -57,12 +59,16 @@ export default function Login() {
 
     try {
       await login(email, password, rememberMe);
-      navigate(homePath);
+      navigate(workspacePath);
     } catch (err: any) {
       setIsLoading(false);
+      // 403 = registered but email not verified yet
+      if (err?.status === 403) {
+        setUnverifiedEmail(email.trim().toLowerCase());
+        return;
+      }
       setShouldShake(true);
       setTimeout(() => setShouldShake(false), 900);
-      // Surface specific error messages when available
       if (err?.error) {
         setErrors((prev) => ({ ...prev, password: err.error }));
       }
@@ -95,6 +101,18 @@ export default function Login() {
                 {t.auth.signInToAccount}
               </h1>
 
+              {unverifiedEmail && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  Please verify your email before logging in.{' '}
+                  <Link
+                    to={`${signupPath}?resend=${encodeURIComponent(unverifiedEmail)}`}
+                    className="font-semibold underline hover:text-amber-900"
+                  >
+                    Resend verification email
+                  </Link>
+                </div>
+              )}
+
               <form className="space-y-3" onSubmit={handleSubmit}>
                 {/* Email Field */}
                 <div>
@@ -123,9 +141,9 @@ export default function Login() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-xs text-stripe-dark font-medium">{t.auth.password}</label>
-                    <a href="#" className="text-[10px] font-semibold text-stripe-purple hover:text-stripe-purple/80">
+                    <Link to={isHe ? '/he/forgot-password' : '/forgot-password'} className="text-[10px] font-semibold text-stripe-purple hover:text-stripe-purple/80">
                       {t.auth.forgotYourPassword}
-                    </a>
+                    </Link>
                   </div>
                   <div className="relative">
                     <input
@@ -218,21 +236,7 @@ export default function Login() {
 
               {/* Social Sign In */}
               <div className="space-y-3">
-                <GoogleSignIn onSuccess={() => navigate(homePath)} />
-
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-200 rounded-lg shadow-sm bg-white text-sm font-semibold text-stripe-dark hover:bg-gray-50 transition-colors"
-                >
-                  {t.auth.signInWithPasskey}
-                </button>
-
-                <button
-                  type="button"
-                  className="w-full flex items-center justify-center px-4 py-2.5 border border-gray-200 rounded-lg shadow-sm bg-white text-sm font-semibold text-stripe-dark hover:bg-gray-50 transition-colors"
-                >
-                  {t.auth.signInWithSSO}
-                </button>
+                <GoogleSignIn redirectTo={workspacePath} />
               </div>
 
               {/* New User Link */}

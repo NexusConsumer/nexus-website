@@ -28,7 +28,7 @@ interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
+  register: (data: RegisterData) => Promise<{ requiresVerification: true; email: string } | void>;
   googleLogin: (accessToken: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -47,20 +47,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Check for Google OAuth redirect callback
-    const hash = window.location.hash;
-    if (hash && hash.includes('access_token=')) {
-      const params = new URLSearchParams(hash.substring(1));
-      const accessToken = params.get('access_token');
-      if (accessToken) {
-        // Clean the URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-        setIsLoading(true);
-        googleLogin(accessToken)
-          .catch(console.error)
-          .finally(() => setIsLoading(false));
-        return;
-      }
+    // Check for Google OAuth redirect callback (Authorization Code Flow)
+    const searchParams = new URLSearchParams(window.location.search);
+    const code = searchParams.get('code');
+    if (code) {
+      // Clean the URL immediately so a refresh doesn't re-submit the code
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setIsLoading(true);
+      api.post<{ accessToken: string }>('/api/auth/google', {
+        code,
+        redirectUri: window.location.origin,
+      })
+        .then(async (data) => {
+          setAccessToken(data.accessToken);
+          const profile = await api.get<AuthUser>('/api/auth/me');
+          setUser(profile);
+          // Persist first name so the welcome screen can show it after the full-page redirect
+          // (access token is in memory and won't survive the navigation).
+          if (profile.fullName) {
+            sessionStorage.setItem('auth_first_name', profile.fullName.split(' ')[0]);
+          }
+          // Navigate to the destination that was saved before the Google redirect.
+          // window.location.replace is used because useNavigate isn't available here
+          // (AuthContext lives outside the Router boundary).
+          const redirect = sessionStorage.getItem('google_oauth_redirect');
+          sessionStorage.removeItem('google_oauth_redirect');
+          window.location.replace(redirect ?? '/');
+        })
+        .catch(console.error)
+        .finally(() => setIsLoading(false));
+      return;
     }
 
     // Normal session restore
@@ -69,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (result && result.user) setUser(result.user as AuthUser);
       })
       .finally(() => setIsLoading(false));
-  }, [googleLogin]);
+  }, []);
 
   const login = useCallback(async (email: string, password: string, rememberMe = false) => {
     const data = await api.post<{ accessToken: string }>('/api/auth/login', { email, password, rememberMe });
@@ -79,10 +95,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(async (registerData: RegisterData) => {
-    const data = await api.post<{ accessToken: string }>('/api/auth/register', registerData);
-    setAccessToken(data.accessToken);
-    const profile = await api.get<AuthUser>('/api/auth/me');
-    setUser(profile);
+    const data = await api.post<{ requiresVerification?: boolean; email?: string; accessToken?: string }>('/api/auth/register', registerData);
+    if (data.requiresVerification) {
+      return { requiresVerification: true as const, email: data.email! };
+    }
   }, []);
 
   const logout = useCallback(async () => {
