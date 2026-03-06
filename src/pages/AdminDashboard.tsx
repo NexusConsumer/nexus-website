@@ -62,8 +62,8 @@ interface RevenueData {
 
 interface Lead {
   id: string;
-  name: string | null;
-  email: string;
+  fullName: string | null;
+  email: string | null;
   company: string | null;
   status: 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'LOST';
   createdAt: string;
@@ -596,8 +596,8 @@ export default function AdminDashboard() {
                 <tbody className="divide-y divide-white/5">
                   {leads.map(lead => (
                     <tr key={lead.id} className="hover:bg-white/5 transition-colors">
-                      <td className="py-2 pr-4 text-white/80">{lead.name ?? '—'}</td>
-                      <td className="py-2 pr-4 text-white/60 font-mono text-[10px]">{lead.email}</td>
+                      <td className="py-2 pr-4 text-white/80">{lead.fullName ?? '—'}</td>
+                      <td className="py-2 pr-4 text-white/60 font-mono text-[10px]">{lead.email ?? '—'}</td>
                       <td className="py-2 pr-4 text-white/60">{lead.company ?? '—'}</td>
                       <td className="py-2 pr-4">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
