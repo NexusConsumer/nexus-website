@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { api, setAccessToken, refreshAccessToken } from '../lib/api';
+import { getVisitorId } from '../lib/visitorId';
 
 export interface AuthUser {
   id: string;
@@ -44,6 +45,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(data.accessToken);
     const profile = await api.get<AuthUser>('/api/auth/me');
     setUser(profile);
+    // Identity resolution — cannot use useAnalytics hook here (circular dep), call api directly
+    void api.post('/api/analytics/track', {
+      anonymousId: getVisitorId(),
+      userId: profile.id,
+      eventName: 'User_Logged_In',
+      channel: 'PRODUCT',
+      properties: { method: 'google' },
+      context: {},
+      sentAt: new Date().toISOString(),
+      mergeSource: 'oauth',
+    }).catch(() => {});
     return profile;
   }, []);
 
