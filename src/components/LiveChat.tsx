@@ -373,6 +373,8 @@ export default function LiveChat({ onClose, onMinimize }: LiveChatProps) {
   const handleRate = (messageId: string, rating: 'up' | 'down') => {
     if (ratings[messageId]) return; // already rated
     setRatings((prev) => ({ ...prev, [messageId]: rating }));
+    // Persist to AiRating table (👍 = 5, 👎 = 1) — fire and forget
+    void api.post(`/api/chat/messages/${messageId}/rate`, { rating: rating === 'up' ? 5 : 1 }).catch(() => {});
     track(PRODUCT.AI_RATING_SUBMITTED, 'PRODUCT', {
       session_id: sessionId ?? undefined,
       message_id: messageId,
