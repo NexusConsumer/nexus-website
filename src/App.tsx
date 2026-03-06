@@ -1,6 +1,9 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { LanguageProvider } from './i18n/LanguageContext';
+
+const ContactSalesButton = lazy(() => import('./components/ContactSalesButton'));
+const LiveChat            = lazy(() => import('./components/LiveChat'));
 
 // ─── Lazy-load every route ────────────────────────────────
 // Each page becomes a separate chunk loaded only when navigated to.
@@ -53,6 +56,31 @@ function PageLoader() {
   );
 }
 
+/** Chat widget rendered outside Routes so it persists across navigation. */
+function ChatWidget() {
+  const { pathname } = useLocation();
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const language = pathname.startsWith('/he') ? 'he' : 'en';
+
+  return (
+    <LanguageProvider language={language}>
+      {!isChatOpen && (
+        <Suspense fallback={null}>
+          <ContactSalesButton onClick={() => setIsChatOpen(true)} />
+        </Suspense>
+      )}
+      {isChatOpen && (
+        <Suspense fallback={null}>
+          <LiveChat
+            onClose={() => setIsChatOpen(false)}
+            onMinimize={() => setIsChatOpen(false)}
+          />
+        </Suspense>
+      )}
+    </LanguageProvider>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -77,6 +105,7 @@ function App() {
           <Route path="/he/payments" element={<LanguageProvider language="he"><PaymentsPage /></LanguageProvider>} />
         </Routes>
       </Suspense>
+      <ChatWidget />
     </BrowserRouter>
   );
 }
