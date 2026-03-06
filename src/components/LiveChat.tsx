@@ -4,6 +4,8 @@ import { X, Send, Minimize2, Settings, Search } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { api, API_URL } from '../lib/api';
 import { getVisitorId } from '../lib/visitorId';
+import { useAnalytics } from '../hooks/useAnalytics';
+import { MARKETING, PRODUCT } from '../lib/analyticsEvents';
 
 interface Message {
   id: string;
@@ -20,6 +22,7 @@ interface LiveChatProps {
 export default function LiveChat({ onClose, onMinimize }: LiveChatProps) {
   const { t, direction } = useLanguage();
   const isRtl = direction === 'rtl';
+  const { track } = useAnalytics();
   const [isClosing, setIsClosing] = useState(false);
 
   const handleClose = () => {
@@ -181,14 +184,11 @@ export default function LiveChat({ onClose, onMinimize }: LiveChatProps) {
     let mounted = true;
     const visitorId = getVisitorId();
 
-    // Fire-and-forget analytics pageview
-    api
-      .post('/api/analytics/pageview', {
-        visitorId,
-        page: window.location.pathname,
-        referrer: document.referrer || undefined,
-      })
-      .catch(() => {});
+    // Track chat widget opened
+    track(MARKETING.CHAT_WIDGET_OPENED, 'MARKETING', {
+      source_page: window.location.pathname,
+      trigger_type: 'manual',
+    });
 
     // Create chat session
     api
@@ -204,6 +204,10 @@ export default function LiveChat({ onClose, onMinimize }: LiveChatProps) {
         if (!mounted) return;
         const sid = data.id;
         setSessionId(sid);
+        track(PRODUCT.CHAT_SESSION_STARTED, 'PRODUCT', {
+          session_id: sid,
+          trigger_type: 'manual',
+        });
 
         // Connect socket and join session room
         const socket = io(API_URL, { withCredentials: true });

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import { LanguageProvider } from './i18n/LanguageContext';
+import { useAnalytics } from './hooks/useAnalytics';
 
 // ─── Lazy-load every route ────────────────────────────────
 // Each page becomes a separate chunk loaded only when navigated to.
@@ -18,11 +19,24 @@ const ResetPassword      = lazy(() => import('./pages/ResetPassword'));
 const PartnersPage       = lazy(() => import('./pages/PartnersPage'));
 const PaymentsPage       = lazy(() => import('./pages/PaymentsPage'));
 
-function ScrollToTop() {
+// ─── Global analytics tracker ────────────────────────────
+// Fires Page_Viewed on every route change.
+// Lives inside BrowserRouter so it can access useLocation.
+function RouteAnalytics() {
   const { pathname } = useLocation();
+  const { page } = useAnalytics();
+
   useEffect(() => {
+    // Determine channel from path
+    const channel =
+      pathname.startsWith('/dashboard') || pathname.startsWith('/admin')
+        ? 'PRODUCT'
+        : 'MARKETING';
+    page(channel, pathname);
     window.scrollTo(0, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
   return null;
 }
 
@@ -56,7 +70,7 @@ function PageLoader() {
 function App() {
   return (
     <BrowserRouter>
-      <ScrollToTop />
+      <RouteAnalytics />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/"         element={<Home />} />

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAnalytics } from '../hooks/useAnalytics';
 import AnimatedGradient from '../components/AnimatedGradient';
 import GoogleSignIn from '../components/GoogleSignIn';
 import NexusLogo from '../components/NexusLogo';
@@ -23,6 +24,7 @@ export default function Login() {
   const { t, language, direction } = useLanguage();
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { identify } = useAnalytics();
   const isHe = language === 'he';
   const homePath = isHe ? '/he' : '/';
   const signupPath = isHe ? '/he/signup' : '/signup';
@@ -58,7 +60,8 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      await login(email, password, rememberMe);
+      const user = await login(email, password, rememberMe);
+      identify(user.id, 'login');
       navigate(workspacePath);
     } catch (err: any) {
       setIsLoading(false);
