@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { useAnalytics } from './hooks/useAnalytics';
+import ProtectedRoute from './components/ProtectedRoute';
 
 // ─── Lazy-load every route ────────────────────────────────
 // Each page becomes a separate chunk loaded only when navigated to.
@@ -18,6 +19,7 @@ const ForgotPassword     = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword      = lazy(() => import('./pages/ResetPassword'));
 const PartnersPage       = lazy(() => import('./pages/PartnersPage'));
 const PaymentsPage       = lazy(() => import('./pages/PaymentsPage'));
+const AdminDashboard     = lazy(() => import('./pages/AdminDashboard'));
 
 // ─── Global analytics tracker ────────────────────────────
 // Fires Page_Viewed on every route change.
@@ -89,6 +91,11 @@ function App() {
           <Route path="/he/partners" element={<LanguageProvider language="he"><PartnersPage /></LanguageProvider>} />
           <Route path="/payments"    element={<LanguageProvider language="en"><PaymentsPage /></LanguageProvider>} />
           <Route path="/he/payments" element={<LanguageProvider language="he"><PaymentsPage /></LanguageProvider>} />
+          <Route path="/admin" element={
+            <ProtectedRoute roles={['ADMIN', 'AGENT']} redirectTo="/login">
+              <AdminDashboard />
+            </ProtectedRoute>
+          } />
         </Routes>
       </Suspense>
     </BrowserRouter>

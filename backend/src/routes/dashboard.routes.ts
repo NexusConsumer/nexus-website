@@ -202,6 +202,57 @@ router.post(
   },
 );
 
+// ─── GET /api/dashboard/revenue ───────────────────────────
+
+router.get('/revenue', apiLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const days = Math.min(Number(req.query.days) || 30, 90);
+
+    const since = new Date();
+    since.setDate(since.getDate() - (days - 1));
+    since.setHours(0, 0, 0, 0);
+
+    const [rows, totals] = await Promise.all([
+      prisma.$queryRaw<Array<{ day: string; revenue: number; transactions: bigint }>>`
+        SELECT
+          DATE("receivedAt") AS day,
+          COALESCE(SUM((properties->>'amount_cents')::int), 0) / 100.0 AS revenue,
+          COUNT(*)::int AS transactions
+        FROM "EventLog"
+        WHERE "eventName" = 'Payment_Completed'
+          AND "receivedAt" >= ${since}
+        GROUP BY DATE("receivedAt")
+        ORDER BY day ASC`,
+      prisma.$queryRaw<[{ total_revenue: number; total_transactions: bigint }]>`
+        SELECT
+          COALESCE(SUM((properties->>'amount_cents')::int), 0) / 100.0 AS total_revenue,
+          COUNT(*)::int AS total_transactions
+        FROM "EventLog"
+        WHERE "eventName" = 'Payment_Completed'
+          AND "receivedAt" >= ${since}`,
+    ]);
+
+    const points: Array<{ date: string; revenue: number; transactions: number }> = [];
+    const rowMap = new Map(rows.map(r => [String(r.day).slice(0, 10), r]));
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split('T')[0];
+      const row = rowMap.get(key);
+      points.push({ date: key, revenue: row ? Number(row.revenue) : 0, transactions: row ? Number(row.transactions) : 0 });
+    }
+
+    res.json({
+      days,
+      total_revenue: Number(totals[0]?.total_revenue ?? 0),
+      total_transactions: Number(totals[0]?.total_transactions ?? 0),
+      points,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── GET /api/dashboard/ai-stats ──────────────────────────
 
 router.get('/ai-stats', apiLimiter, async (_req: Request, res: Response, next: NextFunction) => {
