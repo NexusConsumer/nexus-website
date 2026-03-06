@@ -46,12 +46,13 @@ SELECT
     FILTER (WHERE "eventName" = 'Chat_Widget_Opened')     AS chat_opens,
   COUNT(*)
     FILTER (WHERE "eventName" = 'Signup_Page_Viewed')     AS signup_page_views,
+  -- User_Signed_Up / User_Logged_In are PRODUCT channel — no channel filter here
   COUNT(DISTINCT "userId")
     FILTER (WHERE "eventName" = 'User_Signed_Up')         AS signups,
   COUNT(DISTINCT "userId")
     FILTER (WHERE "eventName" = 'User_Logged_In')         AS logins
 FROM "EventLog"
-WHERE channel = 'MARKETING'
+WHERE channel IN ('MARKETING', 'PRODUCT')
 GROUP BY DATE("receivedAt");
 
 CREATE UNIQUE INDEX IF NOT EXISTS bi_marketing_funnel_date_idx ON bi_marketing_funnel (date);
