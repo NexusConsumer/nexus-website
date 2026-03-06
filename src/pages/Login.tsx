@@ -29,8 +29,8 @@ export default function Login() {
   const homePath = isHe ? '/he' : '/';
   const signupPath = isHe ? '/he/signup' : '/signup';
   const workspacePath = isHe ? '/he/workspace' : '/workspace';
-  const dashboardPath = isHe ? '/he/dashboard' : '/dashboard';
-  const adminPath = isHe ? '/he/admin' : '/admin';
+  const dashboardPath = '/dashboard';
+  const adminPath = '/admin';
 
   const getPostLoginPath = (user: { role: string; onboardingDone: boolean }) => {
     if (user.role === 'ADMIN') return adminPath;

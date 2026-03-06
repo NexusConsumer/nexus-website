@@ -90,9 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const lang = window.location.pathname.startsWith('/he') ? '/he' : '';
           let dest: string;
           if (profile.role === 'ADMIN') {
-            dest = `${lang}/admin`;
+            dest = '/admin';
           } else if (profile.onboardingDone) {
-            dest = `${lang}/dashboard`;
+            dest = '/dashboard';
           } else {
             dest = `${lang}/workspace`;
           }

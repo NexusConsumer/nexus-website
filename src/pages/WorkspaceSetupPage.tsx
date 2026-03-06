@@ -25,8 +25,8 @@ export default function WorkspaceSetupPage() {
   const navigate = useNavigate();
 
   const isRtl = direction === 'rtl';
-  const dashboardPath = isRtl ? '/he/dashboard' : '/dashboard';
-  const adminPath = isRtl ? '/he/admin' : '/admin';
+  const dashboardPath = '/dashboard';
+  const adminPath = '/admin';
   const homePath = isRtl ? '/he' : '/';
 
   const getPostOnboardingPath = () =>
