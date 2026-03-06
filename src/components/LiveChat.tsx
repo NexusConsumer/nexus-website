@@ -100,6 +100,7 @@ export default function LiveChat({ onClose, onMinimize }: LiveChatProps) {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(true);
   const [showQuickActions, setShowQuickActions] = useState(true);
+  const [ratings, setRatings] = useState<Record<string, 'up' | 'down'>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Real backend state
@@ -369,6 +370,17 @@ export default function LiveChat({ onClose, onMinimize }: LiveChatProps) {
     setInputValue('');
   };
 
+  const handleRate = (messageId: string, rating: 'up' | 'down') => {
+    if (ratings[messageId]) return; // already rated
+    setRatings((prev) => ({ ...prev, [messageId]: rating }));
+    track(PRODUCT.AI_RATING_SUBMITTED, 'PRODUCT', {
+      session_id: sessionId ?? undefined,
+      message_id: messageId,
+      rating,
+      has_feedback: false,
+    });
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -530,12 +542,32 @@ export default function LiveChat({ onClose, onMinimize }: LiveChatProps) {
               >
                 {message.text}
               </div>
-              <span className="text-[11px] text-slate-400 font-medium px-2">
-                {message.timestamp.toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
+              <div className="flex items-center gap-2 px-2">
+                <span className="text-[11px] text-slate-400 font-medium">
+                  {message.timestamp.toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+                {message.sender === 'agent' && message.id !== 'welcome' && (
+                  <div className="flex items-center gap-1 ml-1">
+                    <button
+                      onClick={() => handleRate(message.id, 'up')}
+                      className={`text-[13px] transition-all ${ratings[message.id] === 'up' ? 'opacity-100 scale-110' : ratings[message.id] ? 'opacity-20' : 'opacity-40 hover:opacity-80'}`}
+                      title="Helpful"
+                    >
+                      👍
+                    </button>
+                    <button
+                      onClick={() => handleRate(message.id, 'down')}
+                      className={`text-[13px] transition-all ${ratings[message.id] === 'down' ? 'opacity-100 scale-110' : ratings[message.id] ? 'opacity-20' : 'opacity-40 hover:opacity-80'}`}
+                      title="Not helpful"
+                    >
+                      👎
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
 
