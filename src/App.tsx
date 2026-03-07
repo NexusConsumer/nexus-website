@@ -1,14 +1,9 @@
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { useAnalytics } from './hooks/useAnalytics';
 import { useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-
-// Detect a Google OAuth callback at module load time (before any render).
-// If true, we suppress route rendering while AuthContext exchanges the code
-// → prevents a brief flash of the Home page before the redirect to /dashboard.
-const startedWithOAuthCode = new URLSearchParams(window.location.search).has('code');
 
 const ContactSalesButton = lazy(() => import('./components/ContactSalesButton'));
 const LiveChat            = lazy(() => import('./components/LiveChat'));
@@ -156,13 +151,17 @@ function ChatWidget() {
 
 function App() {
   const { isLoading } = useAuth();
+  const { search } = useLocation();
+  // Capture whether we started with a ?code= param (OAuth callback).
+  // useState initializer runs once — persists even after navigate() clears the URL.
+  const [hadOAuthCode] = useState(() => new URLSearchParams(search).has('code'));
 
-  // While an OAuth code is being exchanged, render only the full-screen loader.
-  // This prevents the Home route from briefly rendering during the redirect.
-  if (startedWithOAuthCode && isLoading) return <PageLoader />;
+  // While AuthContext is exchanging the OAuth code, show only the loader.
+  // This prevents the Home route from briefly rendering before the SPA redirect.
+  if (hadOAuthCode && isLoading) return <PageLoader />;
 
   return (
-    <BrowserRouter>
+    <>
       <RouteAnalytics />
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -197,7 +196,7 @@ function App() {
         </Routes>
       </Suspense>
       <ChatWidget />
-    </BrowserRouter>
+    </>
   );
 }
 
