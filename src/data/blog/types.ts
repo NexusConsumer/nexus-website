@@ -5,7 +5,8 @@ export type ArticleSection =
   | { type: 'paragraph'; text: string }
   | { type: 'list'; ordered: boolean; items: string[] }
   | { type: 'callout'; text: string; icon?: string }
-  | { type: 'image'; src: string; alt: string; caption?: string };
+  | { type: 'image'; src: string; alt: string; caption?: string }
+  | { type: 'link'; text: string; href: string; description?: string };
 
 export interface ArticleFAQ {
   question: string;
