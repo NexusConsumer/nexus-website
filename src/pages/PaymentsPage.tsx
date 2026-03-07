@@ -178,12 +178,15 @@ export default function PaymentsPage() {
         .payments-hero-anim .payment-stage {
           overflow: visible !important; background: none !important; border: none !important;
           box-shadow: none !important; outline: none !important;
+          display: flex !important; align-items: center !important; justify-content: center !important;
         }
         .payments-hero-anim .payment-stage::before {
           display: none !important; content: none !important;
         }
-        .payments-hero-anim .payment-phone { right: 0 !important; left: auto !important; top: 50% !important; transform: translateY(-50%) !important; }
-        [dir="rtl"] .payments-hero-anim .payment-phone { left: 0 !important; right: auto !important; top: 50% !important; transform: translateY(-50%) !important; }
+        .payments-hero-anim .payment-phone {
+          position: relative !important; left: auto !important; right: auto !important;
+          top: auto !important; transform: none !important;
+        }
       `}</style>
 
       {/* ══════════════════════════════════════════════════════════
