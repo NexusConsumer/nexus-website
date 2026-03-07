@@ -192,6 +192,18 @@ export const articlesEn: Article[] = [
         text: 'Gaining traction: ~80% of companies allow flexible monthly budgets, and organizations have expanded usage to additional categories beyond food.',
       },
       {
+        type: 'link',
+        text: 'Israel Tax Authority – Employer Tax Obligations',
+        href: 'https://www.gov.il/en/departments/israel_tax_authority',
+        description: 'Official resource on employee benefit taxation and reporting requirements.',
+      },
+      {
+        type: 'link',
+        text: 'Consumer Protection Law – Gift Card & Voucher Regulations',
+        href: 'https://www.gov.il/en/departments/the_consumer_protection_and_fair_trade_authority',
+        description: 'Regulatory framework for gift card validity periods and consumer rights.',
+      },
+      {
         type: 'heading',
         level: 2,
         text: 'Regulation, validity, and transparency: what you must know',
@@ -274,6 +286,12 @@ export const articlesEn: Article[] = [
       {
         type: 'paragraph',
         text: 'An example of a "resident benefits club" approach includes municipal programs offering digital benefits to residents. The framing is service-oriented: eligibility by resident/employee status, benefit catalog, and controlled redemption.',
+      },
+      {
+        type: 'link',
+        text: 'Nexus – Employee Gift & Benefits Platform',
+        href: 'https://www.nexus-pay.com',
+        description: 'Digital gift infrastructure with budget control, redemption tracking, and full regulatory compliance.',
       },
       {
         type: 'heading',
@@ -432,6 +450,12 @@ export const articlesEn: Article[] = [
         text: 'Holidays = large budget; ongoing = small, flexible budget. Companies in practice are expanding budgets and enabling monthly flexibility.',
       },
       {
+        type: 'link',
+        text: 'SHRM – Employee Benefits Survey Report',
+        href: 'https://www.shrm.org/topics-tools/research/employee-benefits-survey',
+        description: 'Annual research on benefit program trends, adoption rates, and ROI benchmarks.',
+      },
+      {
         type: 'heading',
         level: 2,
         text: 'Practical setup: 10-step workflow',
@@ -470,6 +494,12 @@ export const articlesEn: Article[] = [
       {
         type: 'callout',
         text: 'General information — not tax/legal advice. Consult a professional for any specific question.',
+      },
+      {
+        type: 'link',
+        text: 'Nexus – Benefits Club Infrastructure',
+        href: 'https://www.nexus-pay.com',
+        description: 'End-to-end platform for managing organizational benefit programs: vendor catalog, eligibility, redemption, and analytics.',
       },
       {
         type: 'heading',
@@ -601,6 +631,12 @@ export const articlesEn: Article[] = [
         text: 'There\'s a basic flow of "how money moves": payment initiator, banks/networks, costs, and fees. Even if you\'re not a "payment company," the moment you operate a wallet/voucher, you\'re moving value and should understand the flow to plan correctly.',
       },
       {
+        type: 'link',
+        text: 'PCI Security Standards Council',
+        href: 'https://www.pcisecuritystandards.org',
+        description: 'Official PCI DSS standards, compliance documentation, and security best practices for payment data.',
+      },
+      {
         type: 'heading',
         level: 2,
         text: 'Security and PCI: when it\'s relevant in benefits infrastructure',
@@ -652,6 +688,18 @@ export const articlesEn: Article[] = [
           'Obligation to recover balance in case of loss/theft of payment instrument (with reasonable effort), with an exception for paper-based instruments.',
           'Minimum validity periods (5 years for gift cards, 2 years for gift vouchers), with simple and convenient renewal upon holder request.',
         ],
+      },
+      {
+        type: 'link',
+        text: 'Israel Capital Market Authority – Payment Services Regulation',
+        href: 'https://www.gov.il/en/departments/the_capital_market_insurance_and_saving_authority',
+        description: 'Regulatory authority overseeing payment services, including gift card and voucher regulations.',
+      },
+      {
+        type: 'link',
+        text: 'Nexus – Loyalty & Payments Infrastructure',
+        href: 'https://www.nexus-pay.com',
+        description: 'Complete infrastructure for wallet, redemption, settlement, and compliance – built for organizations.',
       },
       {
         type: 'heading',

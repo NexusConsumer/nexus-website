@@ -201,6 +201,20 @@ export const articlesHe: Article[] = [
         text: 'הולך ותופס תאוצה: כ‑80% מהחברות מאפשרות תקציב חודשי גמיש (לעומת יומי), וארגונים הרחיבו שימוש לקטגוריות נוספות מעבר לאוכל.',
       },
 
+      // External links
+      {
+        type: 'link',
+        text: 'אתר רשות המסים – מדריך למעסיקים',
+        href: 'https://www.gov.il/he/departments/israel_tax_authority',
+        description: 'מידע רשמי על חובות דיווח מס בגין הטבות לעובדים',
+      },
+      {
+        type: 'link',
+        text: 'חוק הגנת הצרכן – נוסח מלא',
+        href: 'https://www.nevo.co.il/law_html/law01/999_573.htm',
+        description: 'הוראות בנוגע לתווי קנייה, שוברי זיכוי ושוברי מתנה',
+      },
+
       // Section 6
       {
         type: 'heading',
@@ -289,6 +303,14 @@ export const articlesHe: Article[] = [
       {
         type: 'paragraph',
         text: 'דוגמה לגישה "מועדון הטבות לתושב" היא תוכניות עירוניות כמו הטבות דיגיטליות לתושבים. המסגור הוא שירות: זכאות לפי תושב/עובד, קיטלוג הטבות ויכולת מימוש מבוקרת.',
+      },
+
+      // External link
+      {
+        type: 'link',
+        text: 'Nexus – תשתית הטבות ותשלומים לארגונים',
+        href: 'https://www.nexus-pay.com/he',
+        description: 'פלטפורמה לניהול מתנות, שוברים ותקציבי הטבות',
       },
 
       // Section 9
@@ -451,6 +473,14 @@ export const articlesHe: Article[] = [
         text: 'חגים = תקציב גדול; שוטף = תקציב קטן וגמיש. חברות בפועל מרחיבות תקציבים ומאפשרות גמישות חודשית.',
       },
 
+      // External links
+      {
+        type: 'link',
+        text: 'SHRM – Employee Benefits Survey',
+        href: 'https://www.shrm.org/topics-tools/research/employee-benefits-survey',
+        description: 'מחקר שנתי על מגמות הטבות לעובדים בעולם',
+      },
+
       {
         type: 'heading',
         level: 2,
@@ -491,6 +521,14 @@ export const articlesHe: Article[] = [
       {
         type: 'callout',
         text: 'מידע כללי—לא ייעוץ מס/משפט. מומלץ להתייעץ עם גורם מקצועי בכל שאלה ספציפית.',
+      },
+
+      // External link
+      {
+        type: 'link',
+        text: 'Nexus – פלטפורמת מועדון הטבות לארגונים',
+        href: 'https://www.nexus-pay.com/he',
+        description: 'ניהול מועדון הטבות, ספקים, זכאות ומימוש במקום אחד',
       },
 
       {
@@ -625,6 +663,14 @@ export const articlesHe: Article[] = [
         text: 'יש זרימה בסיסית של "איך הכסף זז": יוזם תשלום, בנקים/רשתות, עלויות, ועמלות. גם אם אתם לא "חברת תשלומים", ברגע שאתם מפעילים ארנק/שובר, אתם מזיזים ערך ושווה להבין את ה‑flow כדי לתכנן נכון.',
       },
 
+      // External links
+      {
+        type: 'link',
+        text: 'PCI Security Standards Council',
+        href: 'https://www.pcisecuritystandards.org/',
+        description: 'האתר הרשמי של תקן PCI DSS – דרישות אבטחה לנתוני כרטיסים',
+      },
+
       {
         type: 'heading',
         level: 2,
@@ -678,6 +724,20 @@ export const articlesHe: Article[] = [
           'חובה לפעול לשחזור יתרה במקרה אובדן/גניבת אמצעי תשלום (במאמץ סביר), עם החרגה לאמצעי מבוסס נייר.',
           'תקופות מינימום תוקף (5 שנים לתו קנייה, 2 שנים לשובר מתנה), וחידוש פשוט ונוח לבקשת מחזיק.',
         ],
+      },
+
+      // External links
+      {
+        type: 'link',
+        text: 'רשות שוק ההון, ביטוח וחיסכון',
+        href: 'https://www.gov.il/he/departments/capital_market_insurance_and_savings_authority',
+        description: 'הרגולטור הישראלי הרלוונטי לשירותי תשלום',
+      },
+      {
+        type: 'link',
+        text: 'Nexus – תשתית נאמנות ותשלומים',
+        href: 'https://www.nexus-pay.com/he',
+        description: 'פלטפורמה מלאה לזכאות, ארנק, מימוש והתחשבנות',
       },
 
       {

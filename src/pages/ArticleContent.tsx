@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Clock, ArrowLeft, ArrowRight, Tag, ChevronRight, AlertCircle } from 'lucide-react';
+import { Clock, ArrowLeft, ArrowRight, Tag, ChevronRight, AlertCircle, ExternalLink } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import BlogSubscribeSection from '../components/BlogSubscribeSection';
 import { getArticleBySlug, getArticles } from '../data/blog';
 import type { Article, ArticleSection } from '../data/blog';
 
@@ -21,7 +22,7 @@ const HERO_GRADIENTS: Record<string, string> = {
 
 export default function ArticleContent() {
   const { slug } = useParams<{ slug: string }>();
-  const { t, language, direction } = useLanguage();
+  const { language, direction } = useLanguage();
   const isRTL = direction === 'rtl';
   const prefix = language === 'he' ? '/he' : '';
 
@@ -153,19 +154,26 @@ export default function ArticleContent() {
     <div className="min-h-screen bg-white" dir={direction}>
       <Navbar variant="dark" />
 
-      {/* ─── Hero ─── */}
-      <section
-        className={`pt-32 pb-16 relative overflow-hidden bg-gradient-to-br ${HERO_GRADIENTS[article.category]}`}
-      >
-        <div className="absolute inset-0 bg-black/30" />
+      {/* ─── Gray Diagonal Hero ─── */}
+      <section className="relative overflow-hidden pt-32 pb-20 md:pb-28">
+        {/* Gray diagonal background */}
+        <div
+          className="absolute inset-0 bg-slate-50"
+          style={{
+            clipPath: isRTL
+              ? 'polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 80px))'
+              : 'polygon(0 0, 100% 0, 100% calc(100% - 80px), 0 100%)',
+          }}
+        />
+
         <div className="max-w-4xl mx-auto px-6 relative z-10">
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-2 text-sm text-white/70 mb-6">
-            <Link to={`${prefix}/blog`} className="hover:text-white transition-colors">
+          <nav className="flex items-center gap-2 text-sm text-slate-500 mb-6">
+            <Link to={`${prefix}/blog`} className="hover:text-slate-800 transition-colors">
               {language === 'he' ? 'בלוג' : 'Blog'}
             </Link>
             <ChevronRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
-            <span className="text-white/90">{categoryLabel[language]?.[article.category]}</span>
+            <span className="text-slate-700">{categoryLabel[language]?.[article.category]}</span>
           </nav>
 
           <span
@@ -173,14 +181,14 @@ export default function ArticleContent() {
           >
             {categoryLabel[language]?.[article.category]}
           </span>
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-4 leading-tight">
+          <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-900 mb-4 leading-tight">
             {article.title}
           </h1>
-          <p className="text-lg text-white/80 mb-6">{article.subtitle}</p>
+          <p className="text-lg text-slate-600 mb-6">{article.subtitle}</p>
 
-          <div className="flex flex-wrap items-center gap-6 text-sm text-white/70">
+          <div className="flex flex-wrap items-center gap-6 text-sm text-slate-500">
             <span className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">
+              <div className="w-8 h-8 rounded-full bg-[#635BFF]/10 flex items-center justify-center text-[#635BFF] text-xs font-bold">
                 {article.author.name.charAt(0)}
               </div>
               {article.author.name}
@@ -323,6 +331,9 @@ export default function ArticleContent() {
         </section>
       )}
 
+      {/* ─── Subscribe / CTA Section ─── */}
+      <BlogSubscribeSection />
+
       <Footer />
     </div>
   );
@@ -409,6 +420,26 @@ function SectionRenderer({ section }: { section: ArticleSection }) {
             </figcaption>
           )}
         </figure>
+      );
+
+    case 'link':
+      return (
+        <div className="my-4 rounded-lg border border-slate-200 bg-slate-50/50 px-5 py-4 flex items-start gap-3 hover:border-[#635BFF]/30 transition-colors">
+          <ExternalLink className="w-4 h-4 text-[#635BFF] flex-shrink-0 mt-1" />
+          <div>
+            <a
+              href={section.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#635BFF] font-medium hover:underline text-sm"
+            >
+              {section.text}
+            </a>
+            {section.description && (
+              <p className="text-xs text-slate-500 mt-1">{section.description}</p>
+            )}
+          </div>
+        </div>
       );
 
     default:
