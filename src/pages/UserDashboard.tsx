@@ -6,10 +6,35 @@ import { WALLET } from '../lib/analyticsEvents';
 import {
   ShoppingBag, CreditCard, MessageSquare, TrendingUp,
   LogOut, ChevronRight, Clock, CheckCircle, XCircle, RefreshCw, Mail,
+  Building2, UserCircle,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 // ─── Types ────────────────────────────────────────────────
+
+interface OrgMembership {
+  role: 'OWNER' | 'ADMIN' | 'MEMBER';
+  org: {
+    id: string;
+    slug: string;
+    name: string;
+    logoUrl?: string;
+    primaryColor?: string;
+    _count?: { members: number };
+  };
+}
+
+const ORG_ROLE_LABELS: Record<string, string> = {
+  OWNER:  'Owner',
+  ADMIN:  'Admin',
+  MEMBER: 'Member',
+};
+
+const ORG_ROLE_COLORS: Record<string, string> = {
+  OWNER:  'bg-purple-500/20 text-purple-300',
+  ADMIN:  'bg-blue-500/20 text-blue-300',
+  MEMBER: 'bg-white/10 text-white/50',
+};
 
 interface OrderItem {
   id: string;
@@ -103,6 +128,8 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [orgs, setOrgs] = useState<OrgMembership[]>([]);
+  const [orgsLoading, setOrgsLoading] = useState(true);
 
   useEffect(() => {
     // Track dashboard view
@@ -123,6 +150,13 @@ export default function UserDashboard() {
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    api.get<OrgMembership[]>('/api/user/orgs')
+      .then((data) => setOrgs(data))
+      .catch(() => {})
+      .finally(() => setOrgsLoading(false));
   }, []);
 
   const handleLogout = async () => {
@@ -169,6 +203,13 @@ export default function UserDashboard() {
             <img src={user.avatarUrl} alt={user.fullName} className="w-8 h-8 rounded-full object-cover" />
           )}
           <span className="text-sm text-white/60 hidden sm:block">{user?.fullName}</span>
+          <Link
+            to="/profile"
+            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
+            title="My profile"
+          >
+            <UserCircle size={16} />
+          </Link>
           <button
             onClick={handleLogout}
             className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all"
@@ -329,6 +370,63 @@ export default function UserDashboard() {
             </div>
           </div>
         )}
+        {/* My Organizations */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-white/10 flex items-center gap-2">
+            <Building2 size={16} className="text-indigo-400" />
+            <h2 className="font-semibold text-sm">My Organizations</h2>
+            {!orgsLoading && orgs.length > 0 && (
+              <span className="ml-auto text-xs text-white/30">{orgs.length}</span>
+            )}
+          </div>
+
+          {orgsLoading ? (
+            <div className="p-6 space-y-3">
+              {[1, 2].map((i) => (
+                <div key={i} className="h-12 rounded-xl bg-white/5 animate-pulse" />
+              ))}
+            </div>
+          ) : orgs.length === 0 ? (
+            <div className="px-6 py-10 text-center">
+              <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3">
+                <Building2 size={18} className="text-white/20" />
+              </div>
+              <p className="text-sm text-white/30 mb-1">Not a member of any organization</p>
+              <p className="text-xs text-white/20">Use an invite link to join an organization</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-white/5">
+              {orgs.map((m) => (
+                <div key={m.org.id} className="px-6 py-4 flex items-center gap-4">
+                  {/* Org avatar */}
+                  <div
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden"
+                    style={{ backgroundColor: m.org.primaryColor ?? '#6366f1' }}
+                  >
+                    {m.org.logoUrl ? (
+                      <img src={m.org.logoUrl} alt="" className="w-9 h-9 object-cover" />
+                    ) : (
+                      m.org.name.charAt(0).toUpperCase()
+                    )}
+                  </div>
+
+                  {/* Org info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{m.org.name}</p>
+                    {m.org._count && (
+                      <p className="text-xs text-white/40">{m.org._count.members} members</p>
+                    )}
+                  </div>
+
+                  {/* Role badge */}
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${ORG_ROLE_COLORS[m.role] ?? 'bg-white/10 text-white/50'}`}>
+                    {ORG_ROLE_LABELS[m.role] ?? m.role}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );

@@ -25,6 +25,7 @@ const PaymentsPage       = lazy(() => import('./pages/PaymentsPage'));
 const AdminDashboard     = lazy(() => import('./pages/AdminDashboard'));
 const UserDashboard      = lazy(() => import('./pages/UserDashboard'));
 const JoinOrg            = lazy(() => import('./pages/JoinOrg'));
+const Profile            = lazy(() => import('./pages/Profile'));
 
 // ─── Global analytics tracker ────────────────────────────
 // Fires Page_Viewed on every route change.
@@ -133,6 +134,16 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/join/:token" element={<JoinOrg />} />
+          <Route path="/profile" element={
+            <ProtectedRoute redirectTo="/login">
+              <Profile />
+            </ProtectedRoute>
+          } />
+          <Route path="/he/profile" element={
+            <ProtectedRoute redirectTo="/he/login">
+              <Profile />
+            </ProtectedRoute>
+          } />
         </Routes>
       </Suspense>
       <ChatWidget />
