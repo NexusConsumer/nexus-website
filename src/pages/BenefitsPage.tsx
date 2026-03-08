@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar';
 import AnimatedGradient from '../components/AnimatedGradient';
 import BenefitsFeatureGrid from '../components/benefits/BenefitsFeatureGrid';
 import BenefitsHowItWorks from '../components/benefits/BenefitsHowItWorks';
+import DashboardMock from '../components/workspace/DashboardMock';
 import PartnerBubbles from '../components/PartnerBubbles';
 import StoryWalletCards from '../components/benefits/StoryWalletCards';
 import StoryInsightsCarousel from '../components/benefits/StoryInsightsCarousel';
@@ -160,7 +161,7 @@ export default function BenefitsPage() {
                 <div
                   className="story-no-text hidden md:block absolute z-0"
                   style={{
-                    [isRtl ? 'right' : 'left']: '60px',
+                    [isRtl ? 'right' : 'left']: '15px',
                     top: '20px',
                     transform: 'scale(0.82)',
                     transformOrigin: 'top center',
@@ -175,11 +176,11 @@ export default function BenefitsPage() {
         </section>
 
         {/* ── Gradient diagonal — cuts behind hero animations ── */}
-        <div className="relative z-[5] h-[600px] -mt-[340px]">
-          <AnimatedGradient clipPath="polygon(0 0, 100% 25%, 100% 100%, 0 75%)" />
+        <div className="relative z-[5] h-[400px] -mt-[240px]">
+          <AnimatedGradient clipPath="polygon(0 10%, 100% 30%, 100% 90%, 0 70%)" />
           {/* Tube/cylinder highlight overlay — same clip to create 3D pipe illusion */}
           <div className="absolute inset-0 pointer-events-none" style={{
-            clipPath: 'polygon(0 0, 100% 25%, 100% 100%, 0 75%)',
+            clipPath: 'polygon(0 10%, 100% 30%, 100% 90%, 0 70%)',
             background: 'linear-gradient(to bottom, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 30%, rgba(255,255,255,0) 70%, rgba(0,0,0,0.18) 100%)',
           }} />
         </div>
@@ -188,15 +189,15 @@ export default function BenefitsPage() {
       {/* ═══════════════════════ S2: WHY A BENEFITS CLUB (diagonal top + bottom) ═══════════════════════ */}
       <section
         id="why-benefits"
-        className="scroll-reveal relative py-20 md:py-32 -mt-12 overflow-hidden"
+        className="scroll-reveal relative py-20 md:py-32 -mt-[120px] overflow-hidden"
       >
         {/* Diagonal background — diagonal on top (tangent to gradient) and bottom */}
         <div
           className="absolute inset-0"
           style={{
             clipPath: isRtl
-              ? 'polygon(0 0, 100% 100px, 100% calc(100% - 100px), 0 100%)'
-              : 'polygon(0 100px, 100% 0, 100% 100%, 0 calc(100% - 100px))',
+              ? 'polygon(0 0, 100% 100px, 100% 100%, 0 calc(100% - 100px))'
+              : 'polygon(0 100px, 100% 0, 100% calc(100% - 100px), 0 100%)',
             background: 'linear-gradient(135deg, #0A2540 0%, #1a1f5e 60%, #0A2540 100%)',
           }}
         />
@@ -359,7 +360,7 @@ export default function BenefitsPage() {
             </div>
 
             {/* Right: Rising Bubbles */}
-            <div className="relative h-[400px] md:h-[800px] -mx-6 md:mx-0 overflow-hidden">
+            <div className="relative h-[300px] md:h-[500px] -mx-6 md:mx-0 overflow-hidden">
               <PartnerBubbles />
             </div>
           </div>
@@ -383,6 +384,11 @@ export default function BenefitsPage() {
             </p>
           </div>
           <BenefitsFeatureGrid />
+
+          {/* Dashboard preview */}
+          <div className="mt-16 relative rounded-2xl overflow-hidden border border-slate-200 shadow-xl" style={{ height: 520 }}>
+            <DashboardMock />
+          </div>
         </div>
       </section>
 
