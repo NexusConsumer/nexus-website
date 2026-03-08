@@ -3,35 +3,31 @@ import { Settings2, BarChart3, Headphones, LayoutDashboard, Puzzle, Palette, Che
 import { useLanguage } from '../../i18n/LanguageContext';
 
 const FEATURES_HE = [
-  { icon: Settings2,       title: 'התאמה עמוקה',     desc: 'כיבוי והדלקה של הטבות, צירוף הטבות ייחודיות של הארגון או שניתנו לו ספציפית.' },
-  { icon: BarChart3,       title: 'ניתוח נתונים',     desc: 'איסוף דאטה על המשתמשים, תובנות בזמן אמת, וניתוח התנהגות קהילת הארגון.' },
-  { icon: Headphones,      title: 'תמיכה וניהול',     desc: 'ניהול מלא של תהליך המימוש באינטגרציה לכל ספקי ההטבות שלנו.' },
-  { icon: LayoutDashboard, title: 'ממשק ניהול',       desc: 'ממשק אחד שנותן שליטה מלאה על כל מועדון ההטבות, נוח ופשוט.' },
-  { icon: Puzzle,          title: 'אינטגרציה',        desc: 'חיבור חלק לכל הספקים, תהליך מימוש אוטומטי, ושירות ברמה הגבוהה ביותר.' },
-  { icon: Palette,         title: 'White-Label',       desc: 'הפלטפורמה ממותגת לחלוטין לארגון — לוגו, צבעים, ושם מותאמים אישית.' },
+  { icon: Settings2,       title: 'התאמה עמוקה',     desc: 'כיבוי והדלקה של הטבות, צירוף הטבות ייחודיות של הארגון או שניתנו לו ספציפית.', accent: 'violet' },
+  { icon: BarChart3,       title: 'ניתוח נתונים',     desc: 'איסוף דאטה על המשתמשים, תובנות בזמן אמת, וניתוח התנהגות קהילת הארגון.', accent: 'emerald' },
+  { icon: Headphones,      title: 'תמיכה וניהול',     desc: 'ניהול מלא של תהליך המימוש באינטגרציה לכל ספקי ההטבות שלנו.', accent: 'blue' },
+  { icon: LayoutDashboard, title: 'ממשק ניהול',       desc: 'ממשק אחד שנותן שליטה מלאה על כל מועדון ההטבות, נוח ופשוט.', accent: 'amber' },
+  { icon: Puzzle,          title: 'אינטגרציה',        desc: 'חיבור חלק לכל הספקים, תהליך מימוש אוטומטי, ושירות ברמה הגבוהה ביותר.', accent: 'rose' },
+  { icon: Palette,         title: 'White-Label',       desc: 'הפלטפורמה ממותגת לחלוטין לארגון — לוגו, צבעים, ושם מותאמים אישית.', accent: 'purple' },
 ];
 
 const FEATURES_EN = [
-  { icon: Settings2,       title: 'Deep Customization', desc: 'Toggle benefits on/off, add org-specific benefits or ones negotiated just for you.' },
-  { icon: BarChart3,       title: 'Analytics',          desc: 'Collect user data, get real-time insights, and analyze community engagement.' },
-  { icon: Headphones,      title: 'Full Support',       desc: 'End-to-end redemption management integrated with all our benefit providers.' },
-  { icon: LayoutDashboard, title: 'Admin Dashboard',    desc: 'One interface to control your entire benefits club — simple and powerful.' },
-  { icon: Puzzle,          title: 'Integration',        desc: 'Seamless connection to all providers, automated redemption, top-tier service.' },
-  { icon: Palette,         title: 'White-Label',        desc: 'Fully branded to your organization — logo, colors, and custom identity.' },
+  { icon: Settings2,       title: 'Deep Customization', desc: 'Toggle benefits on/off, add org-specific benefits or ones negotiated just for you.', accent: 'violet' },
+  { icon: BarChart3,       title: 'Analytics',          desc: 'Collect user data, get real-time insights, and analyze community engagement.', accent: 'emerald' },
+  { icon: Headphones,      title: 'Full Support',       desc: 'End-to-end redemption management integrated with all our benefit providers.', accent: 'blue' },
+  { icon: LayoutDashboard, title: 'Admin Dashboard',    desc: 'One interface to control your entire benefits club — simple and powerful.', accent: 'amber' },
+  { icon: Puzzle,          title: 'Integration',        desc: 'Seamless connection to all providers, automated redemption, top-tier service.', accent: 'rose' },
+  { icon: Palette,         title: 'White-Label',        desc: 'Fully branded to your organization — logo, colors, and custom identity.', accent: 'purple' },
 ];
 
-// Card positions around the center dashboard (desktop layout)
-// Arranged: 3 on top row, 3 on bottom row, dashboard in the middle
-const CARD_POSITIONS = [
-  // Top row - left, center, right
-  { gridArea: '1 / 1 / 2 / 2' },
-  { gridArea: '1 / 2 / 2 / 3' },
-  { gridArea: '1 / 3 / 2 / 4' },
-  // Bottom row - left, center, right
-  { gridArea: '3 / 1 / 4 / 2' },
-  { gridArea: '3 / 2 / 4 / 3' },
-  { gridArea: '3 / 3 / 4 / 4' },
-];
+const ACCENT_STYLES: Record<string, { iconBg: string; iconColor: string; borderHover: string; gradient: string; glowColor: string }> = {
+  violet:  { iconBg: 'bg-violet-100',  iconColor: 'text-violet-600',  borderHover: 'hover:border-violet-300',  gradient: 'from-violet-500/5 to-transparent',   glowColor: 'rgba(139,92,246,0.15)' },
+  emerald: { iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600', borderHover: 'hover:border-emerald-300', gradient: 'from-emerald-500/5 to-transparent',  glowColor: 'rgba(16,185,129,0.15)' },
+  blue:    { iconBg: 'bg-blue-100',    iconColor: 'text-blue-600',    borderHover: 'hover:border-blue-300',    gradient: 'from-blue-500/5 to-transparent',     glowColor: 'rgba(59,130,246,0.15)' },
+  amber:   { iconBg: 'bg-amber-100',   iconColor: 'text-amber-600',   borderHover: 'hover:border-amber-300',   gradient: 'from-amber-500/5 to-transparent',    glowColor: 'rgba(245,158,11,0.15)' },
+  rose:    { iconBg: 'bg-rose-100',     iconColor: 'text-rose-600',    borderHover: 'hover:border-rose-300',    gradient: 'from-rose-500/5 to-transparent',     glowColor: 'rgba(244,63,94,0.15)' },
+  purple:  { iconBg: 'bg-purple-100',   iconColor: 'text-purple-600',  borderHover: 'hover:border-purple-300',  gradient: 'from-purple-500/5 to-transparent',   glowColor: 'rgba(168,85,247,0.15)' },
+};
 
 export default function BenefitsFeatureGrid() {
   const { language, direction } = useLanguage();
@@ -57,188 +53,106 @@ export default function BenefitsFeatureGrid() {
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Flowing lines animation CSS */}
       <style>{`
-        @keyframes flowParticle {
-          0% { offset-distance: 0%; opacity: 0; }
-          10% { opacity: 1; }
-          90% { opacity: 1; }
-          100% { offset-distance: 100%; opacity: 0; }
+        @keyframes floatUp {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
         }
-        @keyframes dashFlow {
-          to { stroke-dashoffset: -20; }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
         }
-        @keyframes pulseGlow {
-          0%, 100% { filter: drop-shadow(0 0 2px rgba(99,91,255,0.3)); }
-          50% { filter: drop-shadow(0 0 6px rgba(99,91,255,0.6)); }
+        .feature-card-new {
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .flow-line {
-          stroke-dasharray: 6 4;
-          animation: dashFlow 1s linear infinite;
+        .feature-card-new:hover {
+          transform: translateY(-4px);
         }
-        .flow-particle {
-          animation: flowParticle 2.5s ease-in-out infinite;
+        .feature-card-new:hover .feature-icon-container {
+          animation: floatUp 2s ease-in-out infinite;
         }
-        .architecture-grid {
+        .feature-card-new:hover .card-shimmer {
+          animation: shimmer 1.5s ease-in-out;
+        }
+        .feature-card-new:hover .feature-accent-line {
+          width: 100%;
+        }
+        .bento-features {
           display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          grid-template-rows: auto auto auto;
-          gap: 0;
+          grid-template-columns: repeat(3, 1fr);
+          grid-template-rows: auto 1fr auto;
+          gap: 20px;
         }
         @media (max-width: 767px) {
-          .architecture-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
+          .bento-features {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto;
           }
         }
       `}</style>
 
-      {/* Architecture layout */}
-      <div className="architecture-grid relative">
-        {/* ── SVG Flowing Lines (desktop only) ── */}
-        <svg
-          className="hidden md:block absolute inset-0 w-full h-full pointer-events-none z-0"
-          style={{ gridArea: '1 / 1 / 4 / 4' }}
-          preserveAspectRatio="none"
-        >
-          <defs>
-            <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(99,91,255,0.1)" />
-              <stop offset="50%" stopColor="rgba(99,91,255,0.4)" />
-              <stop offset="100%" stopColor="rgba(99,91,255,0.1)" />
-            </linearGradient>
-            <linearGradient id="lineGradientV" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(99,91,255,0.1)" />
-              <stop offset="50%" stopColor="rgba(99,91,255,0.4)" />
-              <stop offset="100%" stopColor="rgba(99,91,255,0.1)" />
-            </linearGradient>
-            <filter id="glow">
-              <feGaussianBlur stdDeviation="2" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          {/* Vertical lines from top cards down to dashboard */}
-          {/* Left column */}
-          <line x1="16.67%" y1="38%" x2="16.67%" y2="42%" stroke="url(#lineGradientV)" strokeWidth="2" className="flow-line" style={{ animationDelay: '0s' }} />
-          {/* Center column */}
-          <line x1="50%" y1="38%" x2="50%" y2="42%" stroke="url(#lineGradientV)" strokeWidth="2" className="flow-line" style={{ animationDelay: '0.3s' }} />
-          {/* Right column */}
-          <line x1="83.33%" y1="38%" x2="83.33%" y2="42%" stroke="url(#lineGradientV)" strokeWidth="2" className="flow-line" style={{ animationDelay: '0.6s' }} />
-
-          {/* Vertical lines from dashboard down to bottom cards */}
-          {/* Left column */}
-          <line x1="16.67%" y1="58%" x2="16.67%" y2="62%" stroke="url(#lineGradientV)" strokeWidth="2" className="flow-line" style={{ animationDelay: '0.9s' }} />
-          {/* Center column */}
-          <line x1="50%" y1="58%" x2="50%" y2="62%" stroke="url(#lineGradientV)" strokeWidth="2" className="flow-line" style={{ animationDelay: '1.2s' }} />
-          {/* Right column */}
-          <line x1="83.33%" y1="58%" x2="83.33%" y2="62%" stroke="url(#lineGradientV)" strokeWidth="2" className="flow-line" style={{ animationDelay: '1.5s' }} />
-
-          {/* Horizontal connecting line through dashboard - top */}
-          <line x1="10%" y1="40%" x2="90%" y2="40%" stroke="url(#lineGradient)" strokeWidth="1.5" className="flow-line" style={{ animationDelay: '0.2s' }} />
-          {/* Horizontal connecting line through dashboard - bottom */}
-          <line x1="10%" y1="60%" x2="90%" y2="60%" stroke="url(#lineGradient)" strokeWidth="1.5" className="flow-line" style={{ animationDelay: '0.8s' }} />
-
-          {/* Flowing particles on vertical lines */}
-          {[0, 1, 2].map((i) => (
-            <circle
-              key={`particle-top-${i}`}
-              r="3"
-              fill="#635bff"
-              filter="url(#glow)"
-              className="flow-particle"
-              style={{ animationDelay: `${i * 0.8}s`, offsetPath: `path('M ${16.67 + i * 33.33}% 38% L ${16.67 + i * 33.33}% 42%')` }}
-            >
-              <animateMotion
-                dur={`${2 + i * 0.3}s`}
-                repeatCount="indefinite"
-                path={`M 0,-10 L 0,10`}
-                keyTimes="0;1"
-                keySplines="0.4 0 0.2 1"
-                calcMode="spline"
-              />
-            </circle>
-          ))}
-          {[0, 1, 2].map((i) => (
-            <circle
-              key={`particle-bottom-${i}`}
-              r="3"
-              fill="#635bff"
-              filter="url(#glow)"
-              className="flow-particle"
-              style={{ animationDelay: `${1.5 + i * 0.8}s` }}
-            >
-              <animateMotion
-                dur={`${2 + i * 0.3}s`}
-                repeatCount="indefinite"
-                path={`M 0,-10 L 0,10`}
-                begin={`${1 + i * 0.5}s`}
-              />
-            </circle>
-          ))}
-        </svg>
-
+      <div className="bento-features">
         {/* ── Top Row: 3 Feature Cards ── */}
         {features.slice(0, 3).map((f, i) => {
           const Icon = f.icon;
+          const accent = ACCENT_STYLES[f.accent];
           return (
             <div
               key={f.title}
-              className="relative z-10 m-3"
               style={{
-                gridArea: CARD_POSITIONS[i].gridArea,
                 opacity: isVisible ? 1 : 0,
-                transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
-                transition: `opacity 0.5s ease ${i * 0.15}s, transform 0.5s ease ${i * 0.15}s`,
+                transform: isVisible ? 'translateY(0)' : 'translateY(30px)',
+                transition: `opacity 0.6s ease ${i * 0.12}s, transform 0.6s ease ${i * 0.12}s`,
               }}
             >
               <div
-                className="benefit-feature-card rounded-2xl border border-slate-200 bg-white p-5 h-full cursor-default hover:shadow-lg hover:border-violet-200 transition-all duration-300"
-                style={{ boxShadow: '0 4px 16px rgba(10,20,40,0.04)' }}
+                className={`feature-card-new relative rounded-2xl border border-slate-200/80 bg-white p-6 h-full cursor-default ${accent.borderHover} group overflow-hidden`}
+                style={{ boxShadow: '0 1px 3px rgba(10,20,40,0.04)' }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 30px ${accent.glowColor}, 0 2px 8px rgba(0,0,0,0.04)`;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(10,20,40,0.04)';
+                }}
               >
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
-                  style={{ background: 'rgba(99,91,255,0.08)' }}
-                >
-                  <Icon size={20} className="text-stripe-purple" />
+                {/* Subtle gradient background */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${accent.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl`} />
+
+                {/* Shimmer effect */}
+                <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+                  <div className="card-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full" />
                 </div>
-                <h3 className={`text-base font-bold text-slate-900 mb-1.5 ${he ? 'text-right' : 'text-left'}`}>
-                  {f.title}
-                </h3>
-                <p className={`text-sm text-slate-500 leading-relaxed ${he ? 'text-right' : 'text-left'}`}>
-                  {f.desc}
-                </p>
+
+                {/* Accent line at top */}
+                <div className="feature-accent-line absolute top-0 left-0 h-[2px] w-0 transition-all duration-500 rounded-t-2xl" style={{ background: `linear-gradient(90deg, transparent, ${accent.glowColor.replace('0.15', '0.6')}, transparent)` }} />
+
+                <div className="relative z-10">
+                  <div
+                    className={`feature-icon-container w-12 h-12 rounded-xl ${accent.iconBg} flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110`}
+                  >
+                    <Icon size={22} className={accent.iconColor} strokeWidth={1.8} />
+                  </div>
+                  <h3 className={`text-base font-bold text-slate-900 mb-2 ${he ? 'text-right' : 'text-left'}`}>
+                    {f.title}
+                  </h3>
+                  <p className={`text-sm text-slate-500 leading-relaxed ${he ? 'text-right' : 'text-left'}`}>
+                    {f.desc}
+                  </p>
+                </div>
               </div>
             </div>
           );
         })}
 
-        {/* ── Center: Dashboard (spans full width of grid row 2) ── */}
+        {/* ── Center: Dashboard ── */}
         <div
-          className="relative z-10 md:col-span-3 m-3"
+          className="md:col-span-3"
           style={{
-            gridArea: '2 / 1 / 3 / 4',
             opacity: isVisible ? 1 : 0,
-            transform: isVisible ? 'scale(1)' : 'scale(0.95)',
-            transition: 'opacity 0.6s ease 0.3s, transform 0.6s ease 0.3s',
+            transform: isVisible ? 'scale(1)' : 'scale(0.96)',
+            transition: 'opacity 0.7s ease 0.35s, transform 0.7s ease 0.35s',
           }}
         >
-          {/* Flowing connection dots on left and right (desktop) */}
-          <div className="hidden md:block">
-            {/* Left connection nodes */}
-            <div className="absolute top-1/2 -translate-y-1/2 -left-1 z-20">
-              <div className="w-3 h-3 rounded-full bg-stripe-purple/30 animate-pulse" />
-            </div>
-            {/* Right connection nodes */}
-            <div className="absolute top-1/2 -translate-y-1/2 -right-1 z-20">
-              <div className="w-3 h-3 rounded-full bg-stripe-purple/30 animate-pulse" />
-            </div>
-          </div>
-
           <div className="relative bg-gradient-to-br from-violet-50/80 via-white to-purple-50/60 backdrop-blur-xl border-2 border-violet-200/60 rounded-2xl shadow-2xl shadow-violet-100/50 p-4 max-w-3xl mx-auto">
             {/* Glowing border effect */}
             <div className="absolute -inset-px rounded-2xl bg-gradient-to-r from-violet-400/20 via-purple-400/10 to-violet-400/20 blur-sm pointer-events-none" />
@@ -319,103 +233,53 @@ export default function BenefitsFeatureGrid() {
           </div>
         </div>
 
-        {/* ── Animated SVG Connection Lines between cards and dashboard ── */}
-        <svg
-          className="hidden md:block absolute inset-0 w-full h-full pointer-events-none z-[5]"
-          style={{ gridArea: '1 / 1 / 4 / 4' }}
-        >
-          {/* Flowing particles traveling along paths */}
-          {[0, 1, 2, 3, 4, 5].map((i) => {
-            const col = i < 3 ? i : i - 3;
-            const xPercent = 16.67 + col * 33.33;
-            const isTop = i < 3;
-            const yStart = isTop ? 35 : 65;
-            const yEnd = isTop ? 42 : 58;
-            return (
-              <g key={`flow-group-${i}`}>
-                {/* Glowing particle */}
-                <circle r="4" fill="#635bff" opacity="0.8" filter="url(#glow)">
-                  <animate
-                    attributeName="cy"
-                    values={isTop ? `${yStart}%;${yEnd}%` : `${yEnd}%;${yStart}%`}
-                    dur="2s"
-                    repeatCount="indefinite"
-                    begin={`${i * 0.4}s`}
-                  />
-                  <animate
-                    attributeName="cx"
-                    values={`${xPercent}%;${xPercent}%`}
-                    dur="2s"
-                    repeatCount="indefinite"
-                    begin={`${i * 0.4}s`}
-                  />
-                  <animate
-                    attributeName="opacity"
-                    values="0;0.8;0.8;0"
-                    dur="2s"
-                    repeatCount="indefinite"
-                    begin={`${i * 0.4}s`}
-                  />
-                </circle>
-                {/* Trail effect */}
-                <circle r="6" fill="none" stroke="#635bff" strokeWidth="1" opacity="0.3">
-                  <animate
-                    attributeName="cy"
-                    values={isTop ? `${yStart}%;${yEnd}%` : `${yEnd}%;${yStart}%`}
-                    dur="2s"
-                    repeatCount="indefinite"
-                    begin={`${i * 0.4}s`}
-                  />
-                  <animate
-                    attributeName="cx"
-                    values={`${xPercent}%;${xPercent}%`}
-                    dur="2s"
-                    repeatCount="indefinite"
-                    begin={`${i * 0.4}s`}
-                  />
-                  <animate
-                    attributeName="opacity"
-                    values="0;0.3;0.3;0"
-                    dur="2s"
-                    repeatCount="indefinite"
-                    begin={`${i * 0.4 + 0.1}s`}
-                  />
-                </circle>
-              </g>
-            );
-          })}
-        </svg>
-
         {/* ── Bottom Row: 3 Feature Cards ── */}
         {features.slice(3, 6).map((f, i) => {
           const Icon = f.icon;
+          const accent = ACCENT_STYLES[f.accent];
           return (
             <div
               key={f.title}
-              className="relative z-10 m-3"
               style={{
-                gridArea: CARD_POSITIONS[i + 3].gridArea,
                 opacity: isVisible ? 1 : 0,
-                transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
-                transition: `opacity 0.5s ease ${0.5 + i * 0.15}s, transform 0.5s ease ${0.5 + i * 0.15}s`,
+                transform: isVisible ? 'translateY(0)' : 'translateY(30px)',
+                transition: `opacity 0.6s ease ${0.55 + i * 0.12}s, transform 0.6s ease ${0.55 + i * 0.12}s`,
               }}
             >
               <div
-                className="benefit-feature-card rounded-2xl border border-slate-200 bg-white p-5 h-full cursor-default hover:shadow-lg hover:border-violet-200 transition-all duration-300"
-                style={{ boxShadow: '0 4px 16px rgba(10,20,40,0.04)' }}
+                className={`feature-card-new relative rounded-2xl border border-slate-200/80 bg-white p-6 h-full cursor-default ${accent.borderHover} group overflow-hidden`}
+                style={{ boxShadow: '0 1px 3px rgba(10,20,40,0.04)' }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = `0 8px 30px ${accent.glowColor}, 0 2px 8px rgba(0,0,0,0.04)`;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(10,20,40,0.04)';
+                }}
               >
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
-                  style={{ background: 'rgba(99,91,255,0.08)' }}
-                >
-                  <Icon size={20} className="text-stripe-purple" />
+                {/* Subtle gradient background */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${accent.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl`} />
+
+                {/* Shimmer effect */}
+                <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+                  <div className="card-shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full" />
                 </div>
-                <h3 className={`text-base font-bold text-slate-900 mb-1.5 ${he ? 'text-right' : 'text-left'}`}>
-                  {f.title}
-                </h3>
-                <p className={`text-sm text-slate-500 leading-relaxed ${he ? 'text-right' : 'text-left'}`}>
-                  {f.desc}
-                </p>
+
+                {/* Accent line at top */}
+                <div className="feature-accent-line absolute top-0 left-0 h-[2px] w-0 transition-all duration-500 rounded-t-2xl" style={{ background: `linear-gradient(90deg, transparent, ${accent.glowColor.replace('0.15', '0.6')}, transparent)` }} />
+
+                <div className="relative z-10">
+                  <div
+                    className={`feature-icon-container w-12 h-12 rounded-xl ${accent.iconBg} flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110`}
+                  >
+                    <Icon size={22} className={accent.iconColor} strokeWidth={1.8} />
+                  </div>
+                  <h3 className={`text-base font-bold text-slate-900 mb-2 ${he ? 'text-right' : 'text-left'}`}>
+                    {f.title}
+                  </h3>
+                  <p className={`text-sm text-slate-500 leading-relaxed ${he ? 'text-right' : 'text-left'}`}>
+                    {f.desc}
+                  </p>
+                </div>
               </div>
             </div>
           );
