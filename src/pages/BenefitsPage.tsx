@@ -114,8 +114,8 @@ export default function BenefitsPage() {
     <div dir={direction} className="min-h-screen bg-white overflow-x-hidden">
       <Navbar variant="dark" />
 
-      {/* hide scrollbar globally for gallery */}
-      <style>{`.scrollbar-hide::-webkit-scrollbar{display:none}`}</style>
+      {/* hide scrollbar + hide internal story text on this page */}
+      <style>{`.scrollbar-hide::-webkit-scrollbar{display:none}.story-no-text>div>div:first-child{display:none!important}`}</style>
 
       {/* ═══════════════════════ S1: HERO — Dual Animation ═══════════════════════ */}
       <div className="relative">
@@ -147,12 +147,12 @@ export default function BenefitsPage() {
               {/* Dual animation column */}
               <div className="relative flex justify-center lg:justify-end" style={{ minHeight: 560 }}>
                 {/* Primary: WalletCards (front) */}
-                <div className="relative z-10">
+                <div className="story-no-text relative z-10">
                   <StoryWalletCards />
                 </div>
                 {/* Secondary: InsightsCarousel (behind, offset, scaled, PROMINENT) */}
                 <div
-                  className="hidden md:block absolute z-0"
+                  className="story-no-text hidden md:block absolute z-0"
                   style={{
                     [isRtl ? 'right' : 'left']: '-60px',
                     top: '40px',
@@ -304,7 +304,7 @@ export default function BenefitsPage() {
 
                   {/* Animation container */}
                   <div className="relative overflow-hidden" style={{ height: 480 }}>
-                    <div style={{ transform: 'scale(0.85)', transformOrigin: 'top center' }}>
+                    <div className="story-no-text" style={{ transform: 'scale(0.85)', transformOrigin: 'top center' }}>
                       <card.Component />
                     </div>
                   </div>
