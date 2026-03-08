@@ -84,6 +84,36 @@ export default function ChangelogContent() {
         const res = await fetch(
           `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/pulls?state=closed&sort=updated&direction=desc&per_page=100`,
         );
+
+        if (res.status === 403) {
+          // Rate limited — fall back to commits endpoint (lower cost)
+          console.warn('GitHub rate limited on pulls, falling back to commits');
+          const commitRes = await fetch(
+            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits?per_page=50&sha=main`,
+          );
+          if (!commitRes.ok) throw new Error(`GitHub API responded ${commitRes.status}`);
+          const commits = await commitRes.json();
+          const parsed: ChangelogEntry[] = commits
+            .filter((c: any) => {
+              const msg = (c.commit?.message || '').toLowerCase();
+              return !msg.startsWith('merge pull request') && !msg.startsWith('merge branch');
+            })
+            .map((c: any, idx: number) => {
+              const lines = (c.commit?.message || '').split('\n');
+              return {
+                id: idx + 1,
+                version: (c.sha || '').substring(0, 7),
+                title: lines[0] || 'Update',
+                description: lines.slice(1).join('\n').trim(),
+                date: c.commit?.author?.date || new Date().toISOString(),
+                url: c.html_url || '',
+                categories: detectCategories(c.commit?.message || ''),
+              };
+            });
+          setEntries(parsed);
+          return;
+        }
+
         if (!res.ok) throw new Error(`GitHub API responded ${res.status}`);
         const data: GitHubPR[] = await res.json();
 
@@ -101,12 +131,12 @@ export default function ChangelogContent() {
 
         setEntries(parsed);
       } catch (err) {
+        console.error('Failed to fetch changelog:', err);
         setError(
           language === 'he'
             ? 'לא ניתן לטעון את השינויים כרגע. נסו שוב מאוחר יותר.'
             : 'Unable to load changelog. Please try again later.',
         );
-        console.error('Failed to fetch merged PRs:', err);
       } finally {
         setLoading(false);
       }
