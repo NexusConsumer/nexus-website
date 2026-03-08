@@ -96,6 +96,12 @@ const getNavItems = (t: any, lang: 'en' | 'he') => [
     megaMenu: {
       sections: [
         {
+          title: t.navbar.learn,
+          items: [
+            { name: t.navbar.blog, desc: t.navbar.newsInsights, icon: Newspaper, href: lang === 'he' ? '/he/blog' : '/blog' },
+          ],
+        },
+        {
           title: t.footer.support,
           items: [
             { name: t.navbar.helpCenter, desc: t.navbar.findAnswers, icon: HelpCircle },
