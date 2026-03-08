@@ -120,7 +120,7 @@ export default function BenefitsPage() {
 
       {/* ═══════════════════════ S1: HERO — Dual Animation ═══════════════════════ */}
       <div className="relative">
-        <section className="relative pt-32 pb-20 bg-slate-50 overflow-hidden">
+        <section className="relative z-10 pt-32 pb-20">
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center">
               {/* Text column */}
@@ -140,7 +140,13 @@ export default function BenefitsPage() {
                     to={signupLink}
                     className="inline-block bg-stripe-purple text-white font-semibold px-8 py-3 rounded-xl hover:bg-violet-500 transition-colors"
                   >
-                    {he ? 'צרו קשר עם מכירות' : 'Contact Sales'}
+                    {he ? 'התחילו עכשיו' : 'Get Started'}
+                  </Link>
+                  <Link
+                    to={signupLink}
+                    className="inline-block border border-slate-300 bg-white text-slate-700 font-semibold px-8 py-3 rounded-xl hover:bg-slate-50 transition-colors"
+                  >
+                    {he ? 'צרו קשר עם המכירות' : 'Contact Sales'}
                   </Link>
                 </div>
               </div>
@@ -155,8 +161,8 @@ export default function BenefitsPage() {
                 <div
                   className="story-no-text hidden md:block absolute z-0"
                   style={{
-                    [isRtl ? 'right' : 'left']: '-60px',
-                    top: '40px',
+                    [isRtl ? 'right' : 'left']: '-20px',
+                    top: '20px',
                     transform: 'scale(0.82)',
                     transformOrigin: 'top center',
                     opacity: 1,
@@ -169,8 +175,8 @@ export default function BenefitsPage() {
           </div>
         </section>
 
-        {/* ── Gradient diagonal — visible parallelogram strip (PaymentsPage pattern) ── */}
-        <div className="relative z-10 h-80 -mt-16">
+        {/* ── Gradient diagonal — cuts behind hero animations ── */}
+        <div className="relative z-[5] h-[600px] -mt-[340px]">
           <AnimatedGradient clipPath="polygon(0 0, 100% 25%, 100% 100%, 0 75%)" />
           {/* Tube/cylinder highlight overlay — same clip to create 3D pipe illusion */}
           <div className="absolute inset-0 pointer-events-none" style={{
@@ -180,18 +186,18 @@ export default function BenefitsPage() {
         </div>
       </div>
 
-      {/* ═══════════════════════ S2: WHY A BENEFITS CLUB (diagonal) ═══════════════════════ */}
+      {/* ═══════════════════════ S2: WHY A BENEFITS CLUB (diagonal top + bottom) ═══════════════════════ */}
       <section
         id="why-benefits"
-        className="scroll-reveal relative py-20 md:py-32 overflow-hidden"
+        className="scroll-reveal relative py-20 md:py-32 -mt-12 overflow-hidden"
       >
-        {/* Diagonal background */}
+        {/* Diagonal background — diagonal on top (tangent to gradient) and bottom */}
         <div
           className="absolute inset-0"
           style={{
             clipPath: isRtl
-              ? 'polygon(0 0, 100% 0, 100% 100%, 0 calc(100% - 100px))'
-              : 'polygon(0 0, 100% 0, 100% calc(100% - 100px), 0 100%)',
+              ? 'polygon(0 100px, 100% 0, 100% 100%, 0 calc(100% - 100px))'
+              : 'polygon(0 0, 100% 100px, 100% calc(100% - 100px), 0 100%)',
             background: 'linear-gradient(135deg, #0A2540 0%, #1a1f5e 60%, #0A2540 100%)',
           }}
         />
@@ -259,8 +265,8 @@ export default function BenefitsPage() {
             </h2>
             <p className="text-slate-500 max-w-2xl mx-auto text-base leading-relaxed">
               {he
-                ? 'ארבע דרכים ליצור ערך אמיתי לחברי הארגון — הטבות, קאשבק, גיפט קארדס ומפת הטבות חכמה.'
-                : 'Four ways to create real value for your members — benefits, cashback, gift cards and a smart deals map.'}
+                ? 'בין אם הקהילה שלכם מורכבת מעובדים, לקוחות, משתמשים, בוגרים, תורמים, או אוהדים — אנחנו נתפור לכם הצעת ערך חזקה כמו למשל:'
+                : 'Whether your community is made up of employees, customers, users, alumni, donors, or fans — we\'ll tailor a strong value proposition for you, such as:'}
             </p>
           </div>
 
