@@ -154,9 +154,9 @@ function CheckRow({ text }: { text: string }) {
 // Reversed order: start from 0.7% (best rate visible first), user can slide to see higher rates
 const MILESTONES = [
   { pct: '0.7%', labelHe: 'מעל ₪10M',    labelEn: 'Above ₪10M/mo' },
-  { pct: '0.8%', labelHe: 'עד ₪10M',     labelEn: 'Up to ₪10M/mo' },
-  { pct: '0.9%', labelHe: 'עד ₪5M',      labelEn: 'Up to ₪5M/mo'  },
-  { pct: '1.2%', labelHe: 'עד ₪1M',      labelEn: 'Up to ₪1M/mo'  },
+  { pct: '0.8%', labelHe: 'עד ₪5M',      labelEn: 'Up to ₪5M/mo'  },
+  { pct: '0.9%', labelHe: 'עד ₪1M',      labelEn: 'Up to ₪1M/mo'  },
+  { pct: '1.2%', labelHe: '',             labelEn: ''               },
 ];
 
 function PricingCalculatorSection({ he, signupLink }: { he: boolean; isRtl: boolean; signupLink: string }) {
@@ -176,7 +176,7 @@ function PricingCalculatorSection({ he, signupLink }: { he: boolean; isRtl: bool
             {he ? 'עמלת סליקה גמישה בהתאם לגודל שלך' : 'Flexible Processing Fees That Scale With You'}
           </h2>
           <p className="text-slate-500 max-w-xl mx-auto text-sm leading-relaxed">
-            {he ? 'ככל שנפח הסליקה שלכם גדל — העמלה יורדת. גררו את המחוון כדי לראות את העמלה שלכם.' : 'The more you process, the lower your rate. Drag the slider to see your rate.'}
+            {he ? 'ככל שנפח הסליקה החודשי שלכם גדל — העמלה יורדת. גררו את המחוון כדי לראות את העמלה שלכם.' : 'The more you process, the lower your rate. Drag the slider to see your rate.'}
           </p>
         </div>
 
