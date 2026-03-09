@@ -6,6 +6,7 @@ import AnimatedGradient from '../components/AnimatedGradient';
 import BorderHighlightCard from '../components/BorderHighlightCard';
 import { LanguageProvider } from '../i18n/LanguageContext';
 import StoryGiftCards from '../components/benefits/StoryGiftCards';
+import StoryInsightsCarousel from '../components/benefits/StoryInsightsCarousel';
 import PartnerBubbles from '../components/PartnerBubbles';
 import BenefitsFeatureGrid from '../components/benefits/BenefitsFeatureGrid';
 import DashboardEnvelopePreview from '../components/benefits/DashboardEnvelopePreview';
@@ -337,6 +338,17 @@ const WELFARE_STORY_CARDS = [
       </div>
     ),
   },
+  {
+    id: 'benefits-club',
+    title: 'שלבו עם מועדון הטבות ארגוני',
+    subtitle: 'מתנות בחג והנחות בכל השנה',
+    Component: () => (
+      <div className="relative w-full overflow-hidden" style={{ minHeight: 520 }}>
+        <div />
+        <StoryInsightsCarousel />
+      </div>
+    ),
+  },
 ];
 
 // ─── Section: Values Stories Slider ──────────────────────────────────────────
@@ -420,6 +432,9 @@ function ValuesStoriesSection() {
                   <h3 className="text-lg font-bold" style={{ color: '#635BFF' }}>
                     {card.title}
                   </h3>
+                  {'subtitle' in card && card.subtitle && (
+                    <p className="text-sm text-slate-500 mt-1">{card.subtitle}</p>
+                  )}
                 </div>
 
                 {/* Animation container */}
