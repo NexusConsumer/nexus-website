@@ -14,7 +14,7 @@ export const articlesHe: Article[] = [
     category: 'gifts',
     heroImage: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?w=800&q=80',
     author: { name: 'צוות Nexus', role: 'תשתיות נאמנות ותשלומים' },
-    publishDate: '2026-04-01',
+    publishDate: '2026-02-10',
     readTime: 10,
     sections: [
       // Section 1
@@ -394,7 +394,7 @@ export const articlesHe: Article[] = [
     category: 'benefits',
     heroImage: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&q=80',
     author: { name: 'צוות Nexus', role: 'תשתיות נאמנות ותשלומים' },
-    publishDate: '2026-04-08',
+    publishDate: '2026-02-17',
     readTime: 9,
     sections: [
       {
@@ -621,7 +621,7 @@ export const articlesHe: Article[] = [
     category: 'loyalty',
     heroImage: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80',
     author: { name: 'צוות Nexus', role: 'תשתיות נאמנות ותשלומים' },
-    publishDate: '2026-04-15',
+    publishDate: '2026-02-24',
     readTime: 12,
     sections: [
       {
@@ -852,7 +852,7 @@ export const articlesHe: Article[] = [
     category: 'gifts',
     heroImage: 'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?w=800&q=80',
     author: { name: 'צוות Nexus', role: 'תשתיות נאמנות ותשלומים' },
-    publishDate: '2026-03-24',
+    publishDate: '2026-03-02',
     readTime: 12,
     sections: [
       // Section 1
@@ -1068,7 +1068,7 @@ export const articlesHe: Article[] = [
     category: 'benefits',
     heroImage: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80',
     author: { name: 'צוות Nexus', role: 'תשתיות נאמנות ותשלומים' },
-    publishDate: '2026-04-14',
+    publishDate: '2026-03-03',
     readTime: 11,
     sections: [
       // Section 1
@@ -1372,7 +1372,7 @@ export const articlesHe: Article[] = [
     category: 'loyalty',
     heroImage: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=800&q=80',
     author: { name: 'צוות Nexus', role: 'תשתיות נאמנות ותשלומים' },
-    publishDate: '2026-04-28',
+    publishDate: '2026-03-06',
     readTime: 13,
     sections: [
       // Section 1
@@ -1611,7 +1611,7 @@ export const articlesHe: Article[] = [
     category: 'benefits',
     heroImage: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=800&q=80',
     author: { name: 'צוות Nexus', role: 'תשתית נאמנות ותשלומים' },
-    publishDate: '2026-04-22',
+    publishDate: '2026-03-03',
     readTime: 7,
     sections: [
       {
@@ -1827,7 +1827,7 @@ export const articlesHe: Article[] = [
     category: 'benefits',
     heroImage: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=800&q=80',
     author: { name: 'צוות Nexus', role: 'תשתית נאמנות ותשלומים' },
-    publishDate: '2026-04-29',
+    publishDate: '2026-03-05',
     readTime: 8,
     sections: [
       {
@@ -2038,7 +2038,7 @@ export const articlesHe: Article[] = [
     category: 'loyalty',
     heroImage: 'https://images.unsplash.com/photo-1563986768609-322da13575f2?w=800&q=80',
     author: { name: 'צוות Nexus', role: 'תשתית נאמנות ותשלומים' },
-    publishDate: '2026-05-06',
+    publishDate: '2026-03-09',
     readTime: 7,
     sections: [
       {

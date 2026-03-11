@@ -63,12 +63,27 @@ export default function ArticleContent() {
     return () => observerRef.current?.disconnect();
   }, [article, headings]);
 
-  /* ─── SEO: JSON-LD ─── */
+  /* ─── SEO: meta tags, JSON-LD, hreflang ─── */
   useEffect(() => {
     if (!article) return;
+
+    const isHe = language === 'he';
+    const canonicalUrl = isHe
+      ? `https://nexus-payment.com/he/blog/${article.slug}`
+      : `https://nexus-payment.com/blog/${article.slug}`;
+
+    // Slugs that exist in both EN and HE
+    const bilingualSlugs = new Set([
+      'employee-gifts', 'benefits-club', 'loyalty-payments',
+      'employee-benefits-platform', 'best-employee-benefits-platforms',
+      'digital-wallet-infrastructure',
+    ]);
+    const isBilingual = bilingualSlugs.has(article.slug);
+
+    // ── Title ──
     document.title = article.metaTitle;
 
-    // Set meta description
+    // ── Meta description ──
     let metaDesc = document.querySelector('meta[name="description"]') as HTMLMetaElement | null;
     if (!metaDesc) {
       metaDesc = document.createElement('meta');
@@ -77,19 +92,67 @@ export default function ArticleContent() {
     }
     metaDesc.content = article.metaDescription;
 
-    // JSON-LD BlogPosting
+    // ── Open Graph ──
+    const ogTitle = document.querySelector('meta[property="og:title"]') as HTMLMetaElement | null;
+    if (ogTitle) ogTitle.content = article.metaTitle;
+    const ogDesc = document.querySelector('meta[property="og:description"]') as HTMLMetaElement | null;
+    if (ogDesc) ogDesc.content = article.metaDescription;
+    const ogUrl = document.querySelector('meta[property="og:url"]') as HTMLMetaElement | null;
+    if (ogUrl) ogUrl.content = canonicalUrl;
+    const ogImage = document.querySelector('meta[property="og:image"]') as HTMLMetaElement | null;
+    if (ogImage && article.heroImage) ogImage.content = article.heroImage;
+
+    // ── Canonical ──
+    let canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!canonicalLink) {
+      canonicalLink = document.createElement('link');
+      canonicalLink.rel = 'canonical';
+      document.head.appendChild(canonicalLink);
+    }
+    canonicalLink.href = canonicalUrl;
+
+    // ── hreflang alternates ──
+    document.querySelectorAll('link[data-hreflang]').forEach((el) => el.remove());
+    const addHreflang = (hreflang: string, href: string) => {
+      const link = document.createElement('link');
+      link.rel = 'alternate';
+      link.setAttribute('hreflang', hreflang);
+      link.href = href;
+      link.setAttribute('data-hreflang', hreflang);
+      document.head.appendChild(link);
+    };
+    if (isBilingual) {
+      const enUrl = `https://nexus-payment.com/blog/${article.slug}`;
+      const heUrl = `https://nexus-payment.com/he/blog/${article.slug}`;
+      addHreflang('en', enUrl);
+      addHreflang('he', heUrl);
+      addHreflang('x-default', enUrl);
+    } else {
+      // HE-only article
+      addHreflang('he', canonicalUrl);
+      addHreflang('x-default', canonicalUrl);
+    }
+
+    // ── JSON-LD BlogPosting ──
     const jsonLd: Record<string, any> = {
       '@context': 'https://schema.org',
       '@type': 'BlogPosting',
       headline: article.title,
       description: article.metaDescription,
+      url: canonicalUrl,
       datePublished: article.publishDate,
+      dateModified: article.publishDate,
+      image: article.heroImage ?? 'https://nexus-payment.com/og-image.png',
       author: { '@type': 'Organization', name: article.author.name },
-      publisher: { '@type': 'Organization', name: 'Nexus' },
-      inLanguage: language === 'he' ? 'he-IL' : 'en-US',
+      publisher: {
+        '@type': 'Organization',
+        name: 'Nexus',
+        logo: { '@type': 'ImageObject', url: 'https://nexus-payment.com/nexus-favicon.png' },
+      },
+      inLanguage: isHe ? 'he-IL' : 'en-US',
     };
 
-    // FAQPage
+    // ── FAQPage ──
     const faqLd =
       article.faq.length > 0
         ? {
@@ -116,6 +179,7 @@ export default function ArticleContent() {
 
     return () => {
       script?.remove();
+      document.querySelectorAll('link[data-hreflang]').forEach((el) => el.remove());
     };
   }, [article, language]);
 
