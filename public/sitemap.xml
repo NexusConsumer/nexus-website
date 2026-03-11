@@ -73,6 +73,12 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://nexus-payment.com/he/welfare</loc>
+    <lastmod>2026-03-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://nexus-payment.com/blog</loc>
     <lastmod>2026-03-11</lastmod>
     <changefreq>daily</changefreq>
