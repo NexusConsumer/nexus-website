@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { useAnalytics } from './hooks/useAnalytics';
@@ -60,6 +60,14 @@ function GeoDetectHome() {
       return;
     }
 
+    // Fast path: browser language preference (instant, no network call)
+    const browserLang = navigator.language ?? '';
+    if (browserLang.toLowerCase().startsWith('he')) {
+      localStorage.setItem(LANG_PREF_KEY, 'he');
+      navigate('/he', { replace: true });
+      return;
+    }
+
     // Detect country via free IP geolocation API
     fetch('https://ipapi.co/country/')
       .then((r) => r.text())
@@ -82,6 +90,45 @@ function GeoDetectHome() {
 
   if (!ready) return <PageLoader />;
   return <Home />;
+}
+
+// ─── Language Gate ───────────────────────────────────────
+// Wraps English-only public routes. If the user's preferred language is
+// Hebrew, immediately redirects to the /he equivalent (prepends /he to
+// the current pathname). Detection is fully synchronous — no spinner.
+//
+// Detection order:
+//   1. localStorage 'nexus-lang-preference'   (set by GeoDetectHome or prev visit)
+//   2. navigator.language starts with 'he'    (browser/OS language setting)
+//   3. Neither → render English content as-is
+function LanguageGate({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+
+  const stored = localStorage.getItem(LANG_PREF_KEY);
+
+  if (stored === 'he') {
+    return (
+      <Navigate
+        to={'/he' + location.pathname + location.search + location.hash}
+        replace
+      />
+    );
+  }
+
+  if (!stored) {
+    const browserLang = navigator.language ?? '';
+    if (browserLang.toLowerCase().startsWith('he')) {
+      localStorage.setItem(LANG_PREF_KEY, 'he');
+      return (
+        <Navigate
+          to={'/he' + location.pathname + location.search + location.hash}
+          replace
+        />
+      );
+    }
+  }
+
+  return <>{children}</>;
 }
 
 // ─── Global analytics tracker ────────────────────────────
@@ -225,41 +272,45 @@ function App() {
         <Routes>
           <Route path="/"         element={<GeoDetectHome />} />
           <Route path="/he"       element={<HomeHe />} />
-          <Route path="/signup"   element={<LanguageProvider language="en"><Signup /></LanguageProvider>} />
-          <Route path="/login"    element={<LanguageProvider language="en"><Login /></LanguageProvider>} />
+          {/* ── Auth ─────────────────────────────────────────── */}
+          <Route path="/signup"   element={<LanguageGate><LanguageProvider language="en"><Signup /></LanguageProvider></LanguageGate>} />
+          <Route path="/login"    element={<LanguageGate><LanguageProvider language="en"><Login /></LanguageProvider></LanguageGate>} />
           <Route path="/he/signup"   element={<SignupHe />} />
           <Route path="/he/login"    element={<LoginHe />} />
-          <Route path="/workspace"    element={<LanguageProvider language="en"><WorkspaceSetupPage /></LanguageProvider>} />
+          <Route path="/workspace"    element={<LanguageGate><LanguageProvider language="en"><WorkspaceSetupPage /></LanguageProvider></LanguageGate>} />
           <Route path="/he/workspace" element={<LanguageProvider language="he"><WorkspaceSetupPage /></LanguageProvider>} />
-          <Route path="/verify-email"       element={<LanguageProvider language="en"><VerifyEmailPage /></LanguageProvider>} />
+          <Route path="/verify-email"      element={<LanguageGate><LanguageProvider language="en"><VerifyEmailPage /></LanguageProvider></LanguageGate>} />
           <Route path="/he/verify-email"   element={<LanguageProvider language="he"><VerifyEmailPage /></LanguageProvider>} />
-          <Route path="/forgot-password"   element={<LanguageProvider language="en"><ForgotPassword /></LanguageProvider>} />
+          <Route path="/forgot-password"    element={<LanguageGate><LanguageProvider language="en"><ForgotPassword /></LanguageProvider></LanguageGate>} />
           <Route path="/he/forgot-password" element={<LanguageProvider language="he"><ForgotPassword /></LanguageProvider>} />
-          <Route path="/reset-password"    element={<LanguageProvider language="en"><ResetPassword /></LanguageProvider>} />
+          <Route path="/reset-password"    element={<LanguageGate><LanguageProvider language="en"><ResetPassword /></LanguageProvider></LanguageGate>} />
           <Route path="/he/reset-password" element={<LanguageProvider language="he"><ResetPassword /></LanguageProvider>} />
-          <Route path="/partners"    element={<LanguageProvider language="en"><PartnersPage /></LanguageProvider>} />
+          {/* ── Marketing pages ──────────────────────────────── */}
+          <Route path="/partners"    element={<LanguageGate><LanguageProvider language="en"><PartnersPage /></LanguageProvider></LanguageGate>} />
           <Route path="/he/partners" element={<LanguageProvider language="he"><PartnersPage /></LanguageProvider>} />
-          <Route path="/payments"    element={<LanguageProvider language="en"><PaymentsPage /></LanguageProvider>} />
+          <Route path="/payments"    element={<LanguageGate><LanguageProvider language="en"><PaymentsPage /></LanguageProvider></LanguageGate>} />
           <Route path="/he/payments" element={<LanguageProvider language="he"><PaymentsPage /></LanguageProvider>} />
-          <Route path="/benefits"    element={<LanguageProvider language="en"><BenefitsPage /></LanguageProvider>} />
+          <Route path="/benefits"    element={<LanguageGate><LanguageProvider language="en"><BenefitsPage /></LanguageProvider></LanguageGate>} />
           <Route path="/he/benefits" element={<LanguageProvider language="he"><BenefitsPage /></LanguageProvider>} />
-          <Route path="/benefits-type-2"    element={<LanguageProvider language="en"><BenefitsPageV1 /></LanguageProvider>} />
+          <Route path="/benefits-type-2"    element={<LanguageGate><LanguageProvider language="en"><BenefitsPageV1 /></LanguageProvider></LanguageGate>} />
           <Route path="/he/benefits-type-2" element={<LanguageProvider language="he"><BenefitsPageV1 /></LanguageProvider>} />
-          <Route path="/blog"            element={<BlogList />} />
-          <Route path="/he/blog"         element={<BlogListHe />} />
-          <Route path="/blog/:slug"      element={<ArticlePage />} />
-          <Route path="/he/blog/:slug"   element={<ArticlePageHe />} />
-          <Route path="/privacy"         element={<LanguageProvider language="en"><PrivacyPolicyPage /></LanguageProvider>} />
+          {/* ── Blog ─────────────────────────────────────────── */}
+          <Route path="/blog"          element={<LanguageGate><BlogList /></LanguageGate>} />
+          <Route path="/he/blog"       element={<BlogListHe />} />
+          <Route path="/blog/:slug"    element={<LanguageGate><ArticlePage /></LanguageGate>} />
+          <Route path="/he/blog/:slug" element={<ArticlePageHe />} />
+          {/* ── Legal / Misc ──────────────────────────────────── */}
+          <Route path="/privacy"         element={<LanguageGate><LanguageProvider language="en"><PrivacyPolicyPage /></LanguageProvider></LanguageGate>} />
           <Route path="/he/privacy"      element={<LanguageProvider language="he"><PrivacyPolicyPage /></LanguageProvider>} />
-          <Route path="/accessibility"   element={<LanguageProvider language="en"><AccessibilityPage /></LanguageProvider>} />
+          <Route path="/accessibility"    element={<LanguageGate><LanguageProvider language="en"><AccessibilityPage /></LanguageProvider></LanguageGate>} />
           <Route path="/he/accessibility" element={<LanguageProvider language="he"><AccessibilityPage /></LanguageProvider>} />
-          <Route path="/terms"           element={<LanguageProvider language="en"><TermsOfUsePage /></LanguageProvider>} />
-          <Route path="/he/terms"        element={<LanguageProvider language="he"><TermsOfUsePage /></LanguageProvider>} />
-          <Route path="/he/welfare"     element={<NexusLandingPage />} />
-          <Route path="/docs"          element={<LanguageProvider language="en"><ApiDocsPage /></LanguageProvider>} />
-          <Route path="/he/docs"       element={<LanguageProvider language="he"><ApiDocsPage /></LanguageProvider>} />
-          <Route path="/changelog"     element={<ChangelogPage />} />
-          <Route path="/he/changelog"  element={<ChangelogPageHe />} />
+          <Route path="/terms"       element={<LanguageGate><LanguageProvider language="en"><TermsOfUsePage /></LanguageProvider></LanguageGate>} />
+          <Route path="/he/terms"    element={<LanguageProvider language="he"><TermsOfUsePage /></LanguageProvider>} />
+          <Route path="/he/welfare"  element={<NexusLandingPage />} />
+          <Route path="/docs"        element={<LanguageGate><LanguageProvider language="en"><ApiDocsPage /></LanguageProvider></LanguageGate>} />
+          <Route path="/he/docs"     element={<LanguageProvider language="he"><ApiDocsPage /></LanguageProvider>} />
+          <Route path="/changelog"   element={<LanguageGate><ChangelogPage /></LanguageGate>} />
+          <Route path="/he/changelog" element={<ChangelogPageHe />} />
           <Route path="/dashboard" element={
             <ProtectedRoute redirectTo="/login">
               <UserDashboard />
