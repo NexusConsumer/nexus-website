@@ -15,7 +15,10 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const [articles, total] = await Promise.all([
       prisma.blogArticle.findMany({
         where: { lang, status: status as any },
-        orderBy: { publishDate: 'desc' },
+        orderBy: [
+          { publishDate: { sort: 'desc', nulls: 'last' } },
+          { publishedAt: 'desc' },
+        ],
         skip,
         take: limit,
         select: {
@@ -36,6 +39,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
           publishDate: true,
           readTime: true,
           publishedAt: true,
+          createdAt: true,
           updatedAt: true,
           // Exclude sectionsJson / faqJson from list endpoint for performance
         },
