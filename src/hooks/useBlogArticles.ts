@@ -19,7 +19,9 @@ function toArticle(raw: any): Article {
     },
     publishDate: raw.publishDate
       ? new Date(raw.publishDate).toISOString().split('T')[0]
-      : new Date(raw.createdAt).toISOString().split('T')[0],
+      : raw.createdAt
+        ? new Date(raw.createdAt).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0],
     readTime: raw.readTime ?? 5,
     sections: (raw.sectionsJson ?? []) as ArticleSection[],
     faq: (raw.faqJson ?? []) as ArticleFAQ[],
