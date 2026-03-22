@@ -8,6 +8,8 @@ import * as AiService from '../services/ai.service';
 import * as NotificationService from '../services/notification.service';
 import * as WhatsAppProvider from '../services/whatsapp-provider';
 import * as AiSuggestionService from '../services/ai-suggestion.service';
+import * as EmailService from '../services/email.service';
+import { env } from '../config/env';
 import { getIO } from '../socket';
 
 const router = Router();
@@ -163,10 +165,21 @@ router.post(
           })
           .catch(console.error);
       } else {
-        // HUMAN mode — forward to agent + generate AI suggestion in background
+        // HUMAN mode — forward to agent via email + WhatsApp + generate AI suggestion
         res.status(201).json(customerMsg);
 
-        // Forward customer message to WhatsApp group (preferred) or direct
+        // Forward customer message via email (reply-threaded)
+        if (env.AGENT_EMAIL) {
+          const emailMsgId = (session as any).emailMessageId as string | undefined;
+          EmailService.sendCustomerMessageEmail({
+            to: env.AGENT_EMAIL,
+            sessionId,
+            customerText: text,
+            emailMessageId: emailMsgId,
+          }).catch((err) => console.error('[Chat] Email follow-up failed:', err));
+        }
+
+        // Forward via WhatsApp group (preferred) or direct
         const groupId = (session as any).whatsappGroupId as string | undefined;
         if (groupId) {
           WhatsAppProvider.sendToGroup(

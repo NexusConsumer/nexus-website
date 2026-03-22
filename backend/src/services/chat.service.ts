@@ -55,7 +55,7 @@ export async function saveMessage(data: {
   sessionId: string;
   text: string;
   sender: 'CUSTOMER' | 'AI' | 'AGENT' | 'SYSTEM';
-  channel?: 'WEB' | 'WHATSAPP';
+  channel?: 'WEB' | 'WHATSAPP' | 'EMAIL';
   waMessageId?: string;
   aiMetadata?: object;
 }) {
