@@ -178,7 +178,7 @@ export async function handleChatEscalated(data: {
 
   await WhatsApp.notifyAgent(waMessage);
 
-  // ─── Email notification ────────────────────────────────
+  // ─── Email notification (reply-enabled) ─────────────────
 
   if (env.AGENT_EMAIL) {
     EmailService.sendEscalationAlert({
@@ -188,6 +188,14 @@ export async function handleChatEscalated(data: {
       leadData: data.leadData,
       recentMessages: data.recentMessages,
       page: data.page,
+    }).then(async (messageId) => {
+      // Save the email Message-ID on the session for threading follow-up emails
+      if (messageId) {
+        await prisma.chatSession.update({
+          where: { id: data.sessionId },
+          data: { emailMessageId: messageId },
+        }).catch(() => {});
+      }
     }).catch((err) => console.error('[Notification] Email alert failed:', err));
   }
 

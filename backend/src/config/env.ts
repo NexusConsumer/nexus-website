@@ -40,6 +40,7 @@ const envSchema = z.object({
   // Notifications
   AGENT_WHATSAPP_NUMBER: z.string().min(1).optional(),
   AGENT_EMAIL: z.string().email().optional(), // Email for chat escalation alerts
+  INBOUND_EMAIL_SECRET: z.string().min(1).optional(), // Secret for inbound email webhook
 
   // Email (SendPulse HTTP API) — optional (email disabled when absent)
   SENDPULSE_CLIENT_ID: z.string().min(1).optional(),

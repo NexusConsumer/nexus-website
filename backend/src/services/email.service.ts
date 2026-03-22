@@ -33,24 +33,45 @@ async function getAccessToken(): Promise<string> {
   return cachedToken.value;
 }
 
-async function sendMail(options: { to: string; toName?: string; subject: string; html: string; text?: string }) {
+interface SendMailOptions {
+  to: string;
+  toName?: string;
+  subject: string;
+  html: string;
+  text?: string;
+  replyTo?: string;
+  headers?: Record<string, string>;
+}
+
+async function sendMail(options: SendMailOptions): Promise<string | null> {
   if (!env.SENDPULSE_CLIENT_ID || !env.SENDPULSE_CLIENT_SECRET) {
     console.warn('⚠️  Email not sent — SENDPULSE_CLIENT_ID/SECRET not configured');
-    return;
+    return null;
   }
   console.log(`📧  Sending email to ${options.to}, subject: "${options.subject}", html length: ${options.html?.length ?? 0}`);
   try {
     const token = await getAccessToken();
     const plainText = options.text ?? options.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    const body = JSON.stringify({
-      email: {
-        html: Buffer.from(options.html, 'utf8').toString('base64'),
-        text: plainText,
-        subject: options.subject,
-        from: { name: FROM_NAME, email: FROM_EMAIL },
-        to: [{ name: options.toName ?? options.to, email: options.to }],
-      },
-    });
+
+    const emailPayload: Record<string, unknown> = {
+      html: Buffer.from(options.html, 'utf8').toString('base64'),
+      text: plainText,
+      subject: options.subject,
+      from: { name: FROM_NAME, email: FROM_EMAIL },
+      to: [{ name: options.toName ?? options.to, email: options.to }],
+    };
+
+    // Add Reply-To if specified
+    if (options.replyTo) {
+      emailPayload.reply_to = options.replyTo;
+    }
+
+    // Add custom headers (Message-ID, In-Reply-To, References for threading)
+    if (options.headers && Object.keys(options.headers).length > 0) {
+      emailPayload.headers = options.headers;
+    }
+
+    const body = JSON.stringify({ email: emailPayload });
     const res = await fetch('https://api.sendpulse.com/smtp/emails', {
       method: 'POST',
       headers: {
@@ -59,12 +80,13 @@ async function sendMail(options: { to: string; toName?: string; subject: string;
       },
       body,
     });
-    const data = await res.json() as { result?: boolean; message?: string };
+    const data = await res.json() as { result?: boolean; message?: string; id?: string };
     console.log(`📬  SendPulse response:`, JSON.stringify(data));
     if (!res.ok || data.result === false) {
       throw new Error(data.message ?? `HTTP ${res.status}`);
     }
     console.log(`✅  Email sent to ${options.to}`);
+    return data.id ?? null;
   } catch (err: any) {
     console.error(`❌  Email send failed to ${options.to}:`, err?.message ?? err);
     throw err;
@@ -300,7 +322,23 @@ export async function sendPasswordResetEmail(
   await sendMail({ to: email, toName: fullName, subject, text, html });
 }
 
-// ─── Chat escalation alert ────────────────────────────────
+// ─── Chat escalation alert (reply-from-email enabled) ─────
+
+/**
+ * Generate a unique Message-ID for email threading.
+ * Format: <chat-{shortId}-{timestamp}@nexus-payment.com>
+ */
+function generateMessageId(shortId: string): string {
+  return `<chat-${shortId}-${Date.now()}@nexus-payment.com>`;
+}
+
+/**
+ * Build the thread reference ID (stable per session).
+ * Used in In-Reply-To / References headers for follow-up emails.
+ */
+export function threadReferenceId(shortId: string): string {
+  return `<chat-thread-${shortId}@nexus-payment.com>`;
+}
 
 export async function sendEscalationAlert(data: {
   to: string;
@@ -309,9 +347,10 @@ export async function sendEscalationAlert(data: {
   leadData?: Record<string, string>;
   recentMessages?: Array<{ sender: string; text: string }>;
   page?: string;
-}) {
+}): Promise<string | null> {
   const shortId = data.sessionId.slice(-8);
-  const dashboardUrl = `${FRONTEND}/dashboard`;
+  const messageId = generateMessageId(shortId);
+  const threadRef = threadReferenceId(shortId);
 
   // Build messages HTML
   let messagesHtml = '';
@@ -346,9 +385,16 @@ export async function sendEscalationAlert(data: {
     }
   }
 
+  const subject = `[Chat-${shortId}] ${data.topic}`;
+
   await sendMail({
     to: data.to,
-    subject: `[צ'אט ${shortId}] נדרש נציג - ${data.topic}`,
+    subject,
+    headers: {
+      'Message-ID': messageId,
+      'References': threadRef,
+      'X-Chat-Session': shortId,
+    },
     html: `<!doctype html>
 <html lang="he" dir="rtl">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -358,7 +404,7 @@ export async function sendEscalationAlert(data: {
 <table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:14px;padding:30px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
   <tr><td>
     <div style="background:#dc2626;color:white;padding:14px 20px;border-radius:10px;text-align:center;font-size:18px;font-weight:bold;">
-      צ'אט חדש דורש נציג
+      צ'אט דורש נציג — ${data.topic}
     </div>
   </td></tr>
   <tr><td style="padding-top:16px;">
@@ -373,13 +419,70 @@ export async function sendEscalationAlert(data: {
     <div style="font-weight:bold;color:#111;margin-bottom:8px;">שיחה אחרונה:</div>
     ${messagesHtml}
   </td></tr>` : ''}
-  <tr><td align="center" style="padding:24px 0 8px 0;">
-    <a href="${dashboardUrl}" style="background:#111;color:white;padding:14px 32px;border-radius:10px;font-size:15px;font-weight:bold;text-decoration:none;display:inline-block;">
-      פתח דשבורד
-    </a>
+  <tr><td style="padding:20px 0 8px 0;">
+    <div style="background:#ecfdf5;border:2px solid #10b981;border-radius:10px;padding:16px;text-align:center;">
+      <div style="font-size:16px;font-weight:bold;color:#065f46;margin-bottom:6px;">
+        ענה למייל הזה כדי להגיב ללקוח
+      </div>
+      <div style="font-size:13px;color:#047857;">
+        התשובה שלך תישלח ישירות ללקוח בצ'אט באתר
+      </div>
+    </div>
   </td></tr>
-  <tr><td style="padding-top:12px;text-align:center;">
-    <span style="font-size:12px;color:#999;">ענה דרך WhatsApp: /take ${shortId}</span>
+</table>
+</td></tr>
+</table>
+</body></html>`,
+  });
+
+  return messageId;
+}
+
+// ─── Follow-up email: customer sent a new message ─────────
+
+export async function sendCustomerMessageEmail(data: {
+  to: string;
+  sessionId: string;
+  customerText: string;
+  emailMessageId?: string | null;
+}): Promise<void> {
+  const shortId = data.sessionId.slice(-8);
+  const threadRef = threadReferenceId(shortId);
+  const subject = `Re: [Chat-${shortId}]`;
+
+  // Threading headers — link to the original escalation email
+  const headers: Record<string, string> = {
+    'Message-ID': generateMessageId(shortId),
+    'References': data.emailMessageId
+      ? `${threadRef} ${data.emailMessageId}`
+      : threadRef,
+    'X-Chat-Session': shortId,
+  };
+  if (data.emailMessageId) {
+    headers['In-Reply-To'] = data.emailMessageId;
+  }
+
+  await sendMail({
+    to: data.to,
+    subject,
+    headers,
+    html: `<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;direction:rtl;">
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr><td align="center" style="padding:20px 15px;">
+<table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:14px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
+  <tr><td>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">צ'אט ${shortId} — הודעה חדשה מהלקוח:</div>
+    <div style="background:#e0e7ff;padding:14px 18px;border-radius:12px;font-size:15px;color:#111;line-height:1.6;">
+      ${data.customerText.replace(/\n/g, '<br>')}
+    </div>
+  </td></tr>
+  <tr><td style="padding-top:14px;">
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;text-align:center;font-size:13px;color:#166534;">
+      ענה למייל הזה כדי להגיב ללקוח
+    </div>
   </td></tr>
 </table>
 </td></tr>
