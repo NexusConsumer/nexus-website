@@ -47,6 +47,21 @@ const envSchema = z.object({
   MONDAY_BOARD_ID: z.string().min(1).optional(),
   MONDAY_COLUMN_MAP: z.string().optional(), // JSON: maps logical names to column IDs
 
+  // WhatsApp — Meta Cloud API (optional)
+  WHATSAPP_PHONE_NUMBER_ID: z.string().min(1).optional(),
+  WHATSAPP_TOKEN: z.string().min(1).optional(),
+  WHATSAPP_VERIFY_TOKEN: z.string().min(1).optional(),
+  WHATSAPP_APP_SECRET: z.string().min(1).optional(),
+
+  // WhatsApp — Green API (optional)
+  GREEN_API_URL: z.string().url().optional().default('https://api.green-api.com'),
+  GREEN_API_ID_INSTANCE: z.string().min(1).optional(),
+  GREEN_API_TOKEN: z.string().min(1).optional(),
+
+  // WhatsApp provider switch + agent number
+  WHATSAPP_PROVIDER: z.enum(['meta', 'green_api']).default('meta'),
+  AGENT_WHATSAPP_NUMBER: z.string().min(1).optional(),
+
   // Payments
   ACTIVE_PAYMENT_PROVIDER: z.enum(['stripe', 'payplus']).default('stripe'),
   STRIPE_SECRET_KEY: z.string().optional(),
