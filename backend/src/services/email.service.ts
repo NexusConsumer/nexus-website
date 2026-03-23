@@ -23,6 +23,12 @@ function getSmtpTransport(): nodemailer.Transporter | null {
       tls: { rejectUnauthorized: false }, // SendPulse cert flexibility
     });
     console.log(`📬  SMTP transport created: ${env.SMTP_HOST}:${env.SMTP_PORT} (secure=${env.SMTP_PORT === 465})`);
+    // Verify SMTP connection in background (non-blocking)
+    _smtpTransport.verify().then(() => {
+      console.log('✅  SMTP connection verified OK');
+    }).catch((err: any) => {
+      console.error('❌  SMTP connection verify FAILED:', err?.message ?? err);
+    });
   }
   return _smtpTransport;
 }
@@ -113,11 +119,12 @@ async function sendMail(options: SendMailOptions): Promise<string | null> {
       return info.messageId ?? null;
     } catch (err: any) {
       console.error(`❌  [${label}] SMTP FAILED to ${options.to}:`, err?.message ?? err);
-      throw err;
+      console.log(`🔄  [${label}] Falling back to SendPulse REST API...`);
+      // Fall through to SendPulse REST API below
     }
   }
 
-  // ── Strategy 2: SendPulse REST API (no threading headers) ──
+  // ── Strategy 2: SendPulse REST API (fallback, no threading headers) ──
   if (!env.SENDPULSE_CLIENT_ID || !env.SENDPULSE_CLIENT_SECRET) {
     console.warn(`⚠️  [${label}] Email not sent — no SMTP or SendPulse configured`);
     return null;
