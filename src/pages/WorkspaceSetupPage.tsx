@@ -6,8 +6,9 @@ import { api } from '../lib/api';
 import DashboardMock from '../components/workspace/DashboardMock';
 import OnboardingWizard from '../components/workspace/OnboardingWizard';
 import SetupAnimation from '../components/workspace/SetupAnimation';
+import ScheduleStep from '../components/workspace/ScheduleStep';
 
-type Phase = 'wizard' | 'animation';
+type Phase = 'wizard' | 'animation' | 'schedule';
 
 export interface OnboardingData {
   org_name: string;
@@ -18,41 +19,60 @@ export interface OnboardingData {
   role: string;
 }
 
+const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:5174';
+
 export default function WorkspaceSetupPage() {
   const [phase, setPhase] = useState<Phase>('wizard');
-  const { user, refreshUser } = useAuth();
+  const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
+  const [orgSlug, setOrgSlug] = useState<string | null>(null);
+  const { user } = useAuth();
   const { direction } = useLanguage();
   const navigate = useNavigate();
 
   const isRtl = direction === 'rtl';
-  const dashboardPath = '/dashboard';
-  const adminPath = '/admin';
   const homePath = isRtl ? '/he' : '/';
 
-  const getPostOnboardingPath = () =>
-    user?.role === 'ADMIN' ? adminPath : dashboardPath;
-
-  // If already completed onboarding, skip to the right dashboard
+  // If already has org(s), skip setup and go straight to dashboard/org-picker
   useEffect(() => {
-    if (user?.onboardingDone) {
-      navigate(getPostOnboardingPath(), { replace: true });
+    if (!user) return;
+    const orgs = user.orgMemberships ?? [];
+    if (orgs.length === 1) {
+      window.location.replace(`${DASHBOARD_URL}/organizations/${orgs[0].org.slug}`);
+    } else if (orgs.length > 1) {
+      navigate(isRtl ? '/he/org-select' : '/org-select');
     }
+    // 0 orgs → stay on workspace to create one
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleWizardComplete = async (data: OnboardingData) => {
-    // Persist to backend first so onboardingDone=true is in DB before redirect
-    await api.post('/api/user/workspace/setup', {
+    setOnboardingData(data);
+    setPhase('animation');
+    // Save to backend (fire-and-forget — animation plays while this runs)
+    // Capture orgSlug from response for direct redirect to the org page
+    api.post<{ success: boolean; orgSlug?: string }>('/api/user/workspace/setup', {
       org_name: data.org_name,
       website: data.website,
       business_desc: data.business_desc,
       primary_use_cases: data.primary_use_cases,
       phone: data.phone,
       role: data.role,
+    }).then((res) => {
+      if (res.orgSlug) setOrgSlug(res.orgSlug);
     }).catch(console.error);
-    setPhase('animation');
   };
 
-  const dashFilter = 'blur(0.4px) brightness(0.60)';
+  const redirectToDashboard = () => {
+    const dest = orgSlug
+      ? `${DASHBOARD_URL}/organizations/${orgSlug}`
+      : DASHBOARD_URL;
+    window.location.replace(dest);
+  };
+
+  // Very little blur — dashboard clearly visible in background
+  const dashFilter =
+    phase === 'schedule'
+      ? 'blur(0px) brightness(0.72)'
+      : 'blur(0.4px) brightness(0.60)';
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#080C14]">
@@ -79,11 +99,16 @@ export default function WorkspaceSetupPage() {
         )}
 
         {phase === 'animation' && (
-          <SetupAnimation onComplete={() => {
-            refreshUser()
-              .catch(() => {})
-              .finally(() => navigate('/dashboard', { replace: true }));
-          }} />
+          <SetupAnimation onComplete={() => setPhase('schedule')} />
+        )}
+
+        {phase === 'schedule' && (
+          <ScheduleStep
+            user={user}
+            onboardingData={onboardingData}
+            onBackToSite={redirectToDashboard}
+            onExplore={redirectToDashboard}
+          />
         )}
       </div>
 

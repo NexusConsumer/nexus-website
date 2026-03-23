@@ -22,6 +22,9 @@ import userRoutes from './routes/user.routes';
 import blogRoutes from './routes/blog.routes';
 import agentApprovalsRoutes from './routes/agent-approvals.routes';
 import seoRoutes from './routes/seo.routes';
+import adminUsersRoutes from './routes/admin.users.routes';
+import orgsRoutes from './routes/orgs.routes';
+import invitesRoutes from './routes/invites.routes';
 import { prisma } from './config/database';
 const app = express();
 app.set('trust proxy', 1);
@@ -47,9 +50,14 @@ app.use(
 );
 
 // ─── CORS ────────────────────────────────────────────────
+const allowedOrigins = [env.FRONTEND_URL, env.DASHBOARD_URL, env.USER_MGMT_URL].filter(Boolean) as string[];
 app.use(
   cors({
-    origin: [env.FRONTEND_URL],
+    origin: (origin, cb) => {
+      // Allow requests with no origin (e.g. curl, mobile apps) in dev
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`CORS: origin ${origin} not allowed`));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-anonymous-id', 'x-agent-key'],
@@ -82,12 +90,15 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/admin/ai', adminRoutes);
+app.use('/api/admin/users', adminUsersRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/partners', partnersRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/blog', blogRoutes);
 app.use('/api/admin/agent-requests', agentApprovalsRoutes);
 app.use('/api/seo', seoRoutes);
+app.use('/api/orgs', orgsRoutes);
+app.use('/api/invites', invitesRoutes);
 
 // ─── Dynamic sitemap.xml (must be before static middleware) ──────────────────
 app.get('/sitemap.xml', async (_req, res, next) => {

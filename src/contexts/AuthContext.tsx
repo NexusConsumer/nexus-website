@@ -6,7 +6,6 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { api, setAccessToken, refreshAccessToken } from '../lib/api';
 import { getVisitorId } from '../lib/visitorId';
 
@@ -18,6 +17,7 @@ export interface AuthUser {
   avatarUrl?: string;
   emailVerified: boolean;
   onboardingDone: boolean;
+  orgMemberships?: { role: string; org: { id: string; slug: string; name: string; logoUrl?: string; primaryColor?: string } }[];
 }
 
 interface RegisterData {
@@ -26,7 +26,6 @@ interface RegisterData {
   password: string;
   country?: string;
   emailUpdates?: boolean;
-  language?: string;
 }
 
 interface AuthContextType {
@@ -36,7 +35,7 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<{ requiresVerification: true; email: string } | void>;
   googleLogin: (accessToken: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  updateUser: (partial: Partial<AuthUser>) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -44,7 +43,6 @@ export const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
 
   const googleLogin = useCallback(async (accessToken: string): Promise<AuthUser> => {
     const data = await api.post<{ accessToken: string; isNew?: boolean }>('/api/auth/google', { accessToken });
@@ -82,23 +80,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAccessToken(data.accessToken);
           const profile = await api.get<AuthUser>('/api/auth/me');
           setUser(profile);
-          // Persist first name so the welcome screen can show it on the next page.
+          // Persist first name so the welcome screen can show it after the full-page redirect
+          // (access token is in memory and won't survive the navigation).
           if (profile.fullName) {
             sessionStorage.setItem('auth_first_name', profile.fullName.split(' ')[0]);
           }
+          // Navigate to the destination that was saved before the Google redirect.
+          // window.location.replace is used because useNavigate isn't available here
+          // (AuthContext lives outside the Router boundary).
+          const redirect = sessionStorage.getItem('google_oauth_redirect');
           sessionStorage.removeItem('google_oauth_redirect');
-          const lang = window.location.pathname.startsWith('/he') ? '/he' : '';
-          let dest: string;
-          if (profile.role === 'ADMIN') {
-            dest = '/admin';
-          } else if (profile.onboardingDone) {
-            dest = '/dashboard';
-          } else {
-            dest = `${lang}/workspace`;
-          }
-          // Use React Router navigate (no page reload) — AuthProvider is now inside
-          // BrowserRouter so useNavigate() is available here.
-          navigate(dest, { replace: true });
+          window.location.replace(redirect ?? '/');
         })
         .catch(console.error)
         .finally(() => setIsLoading(false));
@@ -134,13 +126,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  const refreshUser = useCallback(async () => {
-    const profile = await api.get<AuthUser>('/api/auth/me');
-    setUser(profile);
+  const updateUser = useCallback((partial: Partial<AuthUser>) => {
+    setUser((prev) => prev ? { ...prev, ...partial } : prev);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, googleLogin, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, googleLogin, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

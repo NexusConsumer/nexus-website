@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate';
 import { apiLimiter } from '../middleware/rateLimiter';
 import { prisma } from '../config/database';
+import { getUserOrgs } from '../services/org.service';
 
 const router = Router();
 
@@ -166,7 +167,84 @@ router.post('/workspace/setup', apiLimiter, async (req: Request, res: Response, 
       },
     });
 
-    res.json({ success: true });
+    // Create Organization + OrgMember(OWNER) if user has no existing membership
+    const existingMembership = await prisma.organizationMember.findFirst({
+      where: { userId },
+    });
+    let orgSlug: string | undefined;
+    if (!existingMembership) {
+      // Slugify org_name
+      let base = org_name
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .slice(0, 50);
+      if (!base) base = 'org';
+      let slug = base;
+      let n = 2;
+      while (await prisma.organization.findUnique({ where: { slug } })) {
+        slug = `${base}-${n++}`;
+      }
+      const org = await prisma.organization.create({
+        data: {
+          name: org_name,
+          slug,
+          websiteUrl: website || null,
+        },
+      });
+      await prisma.organizationMember.create({
+        data: { userId, orgId: org.id, role: 'OWNER' },
+      });
+      orgSlug = org.slug;
+    }
+
+    res.json({ success: true, orgSlug });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── PATCH /api/user/profile — Self-update profile ────────────────
+
+router.patch('/profile', apiLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.sub;
+    const { fullName, phone, jobTitle, country } = req.body;
+
+    // Whitelist: only personal profile fields, never role/email/emailVerified
+    const data: Record<string, unknown> = {};
+    if (fullName !== undefined) data.fullName = String(fullName).trim() || undefined;
+    if (phone    !== undefined) data.phone    = phone ? String(phone).trim() : null;
+    if (jobTitle !== undefined) data.jobTitle = jobTitle ? String(jobTitle).trim() : null;
+    if (country  !== undefined) data.country  = String(country).trim() || 'IL';
+
+    if (Object.keys(data).length === 0) {
+      res.status(400).json({ error: 'No valid fields to update' });
+      return;
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data,
+      select: {
+        id: true, email: true, fullName: true, role: true,
+        avatarUrl: true, phone: true, jobTitle: true, country: true,
+        provider: true, createdAt: true, lastLoginAt: true,
+      },
+    });
+
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/user/orgs — Current user's org memberships ──
+
+router.get('/orgs', apiLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const memberships = await getUserOrgs(req.user!.sub);
+    res.json(memberships);
   } catch (err) {
     next(err);
   }

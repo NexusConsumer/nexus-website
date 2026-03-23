@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAnalytics } from '../hooks/useAnalytics';
 import AnimatedGradient from '../components/AnimatedGradient';
 import GoogleSignIn from '../components/GoogleSignIn';
 import NexusLogo from '../components/NexusLogo';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -24,26 +24,31 @@ export default function Login() {
   const { t, language, direction } = useLanguage();
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { search } = useLocation();
   const { identify } = useAnalytics();
   const isHe = language === 'he';
-
-  // Preload the likely post-login chunks in the background so navigation is instant.
-  useEffect(() => {
-    void import('./UserDashboard');
-    void import('./WorkspaceSetupPage');
-    void import('./AdminDashboard');
-  }, []);
-
   const homePath = isHe ? '/he' : '/';
   const signupPath = isHe ? '/he/signup' : '/signup';
   const workspacePath = isHe ? '/he/workspace' : '/workspace';
-  const dashboardPath = '/dashboard';
-  const adminPath = '/admin';
+  const dashboardPath = isHe ? '/he/dashboard' : '/dashboard';
+  const adminPath = isHe ? '/he/admin' : '/admin';
 
-  const getPostLoginPath = (user: { role: string; onboardingDone: boolean }) => {
-    if (user.role === 'ADMIN') return adminPath;
-    if (user.onboardingDone) return dashboardPath;
-    return workspacePath;
+  // Support ?next= redirect (e.g. from /join/:token)
+  const nextPath = new URLSearchParams(search).get('next');
+
+  const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:5174';
+
+  const navigateAfterLogin = (user: { role: string; onboardingDone: boolean; orgMemberships?: { org: { slug: string } }[] }) => {
+    if (nextPath) { navigate(nextPath); return; }
+    if (user.role === 'ADMIN' || user.role === 'AGENT') { navigate(adminPath); return; }
+    const orgs = user.orgMemberships ?? [];
+    if (orgs.length === 1) {
+      window.location.replace(`${DASHBOARD_URL}/organizations/${orgs[0].org.slug}`);
+      return;
+    }
+    if (orgs.length > 1) { navigate(isHe ? '/he/org-select' : '/org-select'); return; }
+    // 0 orgs → always go to workspace to create one (even if onboardingDone from legacy signup)
+    navigate(workspacePath);
   };
 
   const isFormValid = email.trim() !== '' && password.trim() !== '';
@@ -78,7 +83,7 @@ export default function Login() {
     try {
       const user = await login(email, password, rememberMe);
       identify(user.id, 'login');
-      navigate(getPostLoginPath(user));
+      navigateAfterLogin(user);
     } catch (err: any) {
       setIsLoading(false);
       // 403 = registered but email not verified yet
