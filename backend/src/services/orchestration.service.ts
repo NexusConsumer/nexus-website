@@ -28,6 +28,14 @@ export function parseWhatsAppCommand(text: string): WhatsAppCommand {
   return { type: 'unknown' };
 }
 
+// ─── Helper: check if sender is the agent ─────────────────
+
+function isAgentPhone(phone: string): boolean {
+  if (!env.AGENT_WHATSAPP_NUMBER) return false;
+  const clean = (p: string) => p.replace(/[^0-9]/g, '');
+  return clean(phone) === clean(env.AGENT_WHATSAPP_NUMBER);
+}
+
 // ─── Session Resolution (8-char suffix → full session) ────
 
 async function resolveSession(shortId: string) {
@@ -54,23 +62,32 @@ export async function handleIncomingWhatsAppMessage(data: {
   from: string;
   text: string;
   externalId: string;
+  senderName?: string;
+  mediaUrl?: string;
+  mediaType?: string;
+  fileName?: string;
 }): Promise<void> {
-  const command = parseWhatsAppCommand(data.text);
-
-  switch (command.type) {
-    case 'take':
-      await handleTakeCommand(command.sessionId, data.from);
-      break;
-    case 'release':
-      await handleReleaseCommand(command.sessionId, data.from);
-      break;
-    case 'message':
-      await handleAgentMessage(command.sessionId, command.messageText!, data.from, data.externalId);
-      break;
-    case 'unknown':
-      await handleUnstructuredMessage(data.from, data.text, data.externalId);
-      break;
+  // ── Agent messages: commands (/take, /release) or routed to sessions
+  if (isAgentPhone(data.from)) {
+    const command = parseWhatsAppCommand(data.text);
+    switch (command.type) {
+      case 'take':
+        await handleTakeCommand(command.sessionId, data.from);
+        return;
+      case 'release':
+        await handleReleaseCommand(command.sessionId, data.from);
+        return;
+      case 'message':
+        await handleAgentMessage(command.sessionId, command.messageText!, data.from, data.externalId);
+        return;
+      case 'unknown':
+        await handleUnstructuredMessage(data.from, data.text, data.externalId);
+        return;
+    }
   }
+
+  // ── Customer / external contact messages → route to WhatsApp inbox
+  await handleCustomerWhatsAppMessage(data);
 }
 
 // ─── /take <shortId> ──────────────────────────────────────
@@ -282,4 +299,96 @@ async function handleUnstructuredMessage(
     );
   }
   // 0 sessions → ignore (normal WA message not meant for the bot)
+}
+
+// ─── Customer WhatsApp Message → auto-create/find session ─
+
+async function handleCustomerWhatsAppMessage(data: {
+  from: string;
+  text: string;
+  externalId: string;
+  senderName?: string;
+  mediaUrl?: string;
+  mediaType?: string;
+  fileName?: string;
+}): Promise<void> {
+  const waContactId = data.from.replace('@c.us', '');
+
+  // 1. Find existing open session for this WhatsApp contact
+  let session = await prisma.chatSession.findFirst({
+    where: {
+      waThreadId: waContactId,
+      status: { in: ['OPEN', 'PENDING_HUMAN'] },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+
+  // 2. If no open session, create a new one
+  if (!session) {
+    const contactName = data.senderName || waContactId;
+    session = await prisma.chatSession.create({
+      data: {
+        visitorId: `wa_${waContactId}`,
+        waThreadId: waContactId,
+        status: 'OPEN',
+        mode: 'HUMAN', // WhatsApp conversations start in HUMAN mode
+        subject: contactName,
+        metadata: {
+          channel: 'whatsapp',
+          contactPhone: waContactId,
+          contactName: data.senderName || null,
+        },
+      },
+    });
+
+    console.log(`[Orchestration] New WhatsApp session created: ${session.id} for ${waContactId}`);
+  }
+
+  // 3. Save the customer message
+  const msg = await ChatService.saveMessage({
+    sessionId: session.id,
+    text: data.text || (data.fileName ? `📎 ${data.fileName}` : '📎 מדיה'),
+    sender: 'CUSTOMER',
+    channel: 'WHATSAPP',
+    waMessageId: data.externalId,
+    mediaUrl: data.mediaUrl,
+    mediaType: data.mediaType,
+    fileName: data.fileName,
+  });
+
+  // 4. Touch updatedAt on session
+  await prisma.chatSession.update({
+    where: { id: session.id },
+    data: { updatedAt: new Date() },
+  });
+
+  // 5. Broadcast to admin dashboard via Socket.io
+  const io = getIO();
+  io.to(`session:${session.id}`).emit('new_message', {
+    id: msg.id,
+    text: msg.text,
+    sender: msg.sender,
+    channel: msg.channel,
+    timestamp: msg.createdAt,
+    mediaUrl: msg.mediaUrl,
+    mediaType: msg.mediaType,
+    fileName: msg.fileName,
+  });
+
+  // Also broadcast session update so admin sidebar refreshes
+  broadcastToAdmins('session_updated', {
+    sessionId: session.id,
+    waThreadId: waContactId,
+    lastMessage: msg.text.slice(0, 100),
+    timestamp: msg.createdAt,
+    senderName: data.senderName,
+  });
+
+  // 6. Notify agent on WhatsApp about new customer message
+  const shortId = session.id.slice(-8);
+  const contactLabel = data.senderName || waContactId;
+  const preview = data.text ? data.text.slice(0, 200) : '📎 מדיה';
+  await WhatsAppProvider.notifyAgent(
+    `💬 *הודעה חדשה מ-${contactLabel}*\nסשן: ${shortId}\n\n${preview}\n\n👉 להשיב:\n${shortId}: ההודעה שלך`,
+  ).catch(console.error);
 }
