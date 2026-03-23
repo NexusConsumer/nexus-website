@@ -9,6 +9,7 @@ import * as AiService from '../services/ai.service';
 import * as NotificationService from '../services/notification.service';
 import * as EmailService from '../services/email.service';
 import * as OutlookGraph from '../services/outlook-graph.service';
+import * as WhatsAppProvider from '../services/whatsapp-provider';
 import { env } from '../config/env';
 import { getIO } from '../socket';
 
@@ -402,12 +403,15 @@ router.post(
         });
       }
 
+      // Determine if this is a WhatsApp session
+      const isWaSession = !!(session as any).waThreadId;
+
       // Save agent message
       const agentMsg = await ChatService.saveMessage({
         sessionId,
         text,
         sender: 'AGENT',
-        channel: 'WEB',
+        channel: isWaSession ? 'WHATSAPP' : 'WEB',
       });
 
       // Forward to customer via Socket.io
@@ -422,6 +426,14 @@ router.post(
         mediaType: (agentMsg as any).mediaType ?? undefined,
         fileName: (agentMsg as any).fileName ?? undefined,
       });
+
+      // If WhatsApp session — also send message to customer on WhatsApp
+      if (isWaSession) {
+        const waContact = (session as any).waThreadId as string;
+        WhatsAppProvider.sendText(waContact, text).catch((err: Error) =>
+          console.error(`[Chat] Failed to send WhatsApp reply to ${waContact}:`, err.message),
+        );
+      }
 
       res.status(201).json(agentMsg);
     } catch (err) {

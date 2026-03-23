@@ -69,17 +69,54 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
       const value = change.value;
 
       // Handle incoming messages — route through orchestration
-      for (const msg of value.messages ?? []) {
-        if (msg.type !== 'text') continue;
+      // Extract contact names for display
+      const contacts = value.contacts ?? [];
+      const contactMap: Record<string, string> = {};
+      for (const c of contacts) {
+        if (c.wa_id && c.profile?.name) contactMap[c.wa_id] = c.profile.name;
+      }
 
+      for (const msg of value.messages ?? []) {
         const externalId = msg.id as string;
         if (await isProcessed(externalId)) continue;
         await markProcessed(externalId, 'meta');
 
         const from = msg.from as string;
-        const text = (msg.text?.body ?? '') as string;
+        const senderName = contactMap[from] || undefined;
+        let text = '';
+        let mediaUrl: string | undefined;
+        let mediaType: string | undefined;
+        let fileName: string | undefined;
 
-        await OrchestrationService.handleIncomingWhatsAppMessage({ from, text, externalId });
+        switch (msg.type) {
+          case 'text':
+            text = msg.text?.body ?? '';
+            break;
+          case 'image':
+            text = msg.image?.caption ?? '';
+            mediaType = 'image';
+            break;
+          case 'video':
+            text = msg.video?.caption ?? '';
+            mediaType = 'video';
+            break;
+          case 'audio':
+            mediaType = 'audio';
+            break;
+          case 'document':
+            text = msg.document?.caption ?? '';
+            mediaType = 'document';
+            fileName = msg.document?.filename;
+            break;
+          default:
+            continue;
+        }
+
+        if (!text && !mediaType) continue;
+
+        await OrchestrationService.handleIncomingWhatsAppMessage({
+          from, text: text || '', externalId, senderName, mediaUrl, mediaType, fileName,
+        });
       }
 
       // Handle message status updates (delivered, read, etc.)
@@ -104,20 +141,70 @@ router.post('/greenapi', async (req: Request, res: Response) => {
     return;
   }
 
-  // Only process incoming text messages
+  // Only process incoming messages
   if (payload.typeWebhook !== 'incomingMessageReceived') return;
-  if (payload.messageData?.typeMessage !== 'textMessage') return;
 
   const externalId = payload.idMessage as string;
   const from = (payload.senderData?.sender?.replace('@c.us', '') ?? '') as string;
-  const text = (payload.messageData?.textMessageData?.textMessage ?? '') as string;
+  const senderName = (payload.senderData?.senderName ?? '') as string;
+  const msgData = payload.messageData;
+  const msgType = msgData?.typeMessage as string;
 
-  if (!externalId || !from || !text) return;
+  if (!externalId || !from) return;
 
   if (await isProcessed(externalId)) return;
   await markProcessed(externalId, 'green_api');
 
-  await OrchestrationService.handleIncomingWhatsAppMessage({ from, text, externalId });
+  // Extract text and media depending on message type
+  let text = '';
+  let mediaUrl: string | undefined;
+  let mediaType: string | undefined;
+  let fileName: string | undefined;
+
+  switch (msgType) {
+    case 'textMessage':
+      text = msgData?.textMessageData?.textMessage ?? '';
+      break;
+    case 'extendedTextMessage':
+      text = msgData?.extendedTextMessageData?.text ?? '';
+      break;
+    case 'imageMessage':
+      text = msgData?.imageMessage?.caption ?? '';
+      mediaUrl = msgData?.downloadUrl ?? msgData?.imageMessage?.downloadUrl;
+      mediaType = 'image';
+      break;
+    case 'videoMessage':
+      text = msgData?.videoMessage?.caption ?? '';
+      mediaUrl = msgData?.downloadUrl ?? msgData?.videoMessage?.downloadUrl;
+      mediaType = 'video';
+      break;
+    case 'audioMessage':
+      mediaUrl = msgData?.downloadUrl ?? msgData?.audioMessage?.downloadUrl;
+      mediaType = 'audio';
+      break;
+    case 'documentMessage':
+      text = msgData?.documentMessage?.caption ?? '';
+      mediaUrl = msgData?.downloadUrl ?? msgData?.documentMessage?.downloadUrl;
+      mediaType = 'document';
+      fileName = msgData?.documentMessage?.fileName ?? msgData?.fileMessageData?.fileName;
+      break;
+    default:
+      // Unsupported message type — skip
+      console.log(`[Webhook/GreenAPI] Skipping unsupported type: ${msgType}`);
+      return;
+  }
+
+  if (!text && !mediaUrl) return;
+
+  await OrchestrationService.handleIncomingWhatsAppMessage({
+    from,
+    text: text || '',
+    externalId,
+    senderName: senderName || undefined,
+    mediaUrl,
+    mediaType,
+    fileName,
+  });
 });
 
 // ─── POST /api/webhooks/email-inbound — Agent email replies ─
