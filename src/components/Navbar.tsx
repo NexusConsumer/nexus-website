@@ -5,7 +5,10 @@ import { ChevronDown, Menu, X, ArrowRight, CreditCard, Link as LinkIcon, Receipt
 import { Link } from 'react-router-dom';
 import NexusLogo from './NexusLogo';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { createPortal } from 'react-dom';
+
+const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:5174';
 
 // Function to get nav items with translations
 const getNavItems = (t: any, lang: 'en' | 'he') => [
@@ -160,6 +163,9 @@ function MegaMenuPanel({
 export default function Navbar({ variant = 'light' }: { variant?: 'light' | 'dark' }) {
   const { t, direction, language } = useLanguage();
   const { track } = useAnalytics();
+  const { user } = useAuth();
+  const isHe = language === 'he';
+  const userOrgs = user?.orgMemberships ?? [];
 
   // Get nav items with current language
   const navItems = getNavItems(t, language);
@@ -536,19 +542,58 @@ export default function Navbar({ variant = 'light' }: { variant?: 'light' | 'dar
 
         {/* Desktop CTA */}
         <div className="hidden lg:flex items-center gap-4">
-          <Link to={language === 'he' ? '/he/login' : '/login'} className={`text-sm ${variant === 'dark' ? 'text-slate-800 hover:text-slate-900 hover:bg-slate-100' : 'text-white/80 hover:text-slate-900 hover:bg-white'} px-4 py-2 rounded-lg transition-all`}>
-            {t.navbar.signIn}
-          </Link>
-          <Link
-            to={language === 'he' ? '/he/signup' : '/signup'}
-            className="group flex items-center gap-2 bg-stripe-purple hover:bg-stripe-purple/90 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all hover:shadow-lg hover:shadow-stripe-purple/25"
-            onClick={() => track(MARKETING.NAVBAR_CTA_CLICKED, 'MARKETING', { button_text: t.navbar.getStarted, destination: 'signup' })}
-          >
-            {t.navbar.getStarted}
-            <span className="inline-block w-0 overflow-hidden group-hover:w-4 transition-all duration-300 ease-out">
-              <ArrowRight size={14} className={`inline ${direction === 'rtl' ? 'scale-x-[-1]' : ''}`} />
-            </span>
-          </Link>
+          {user ? (
+            // ── Authenticated user ──────────────────────────────
+            userOrgs.length > 0 ? (
+              // Has org(s) — show Dashboard button
+              userOrgs.length === 1 ? (
+                <a
+                  href={`${DASHBOARD_URL}/organizations/${userOrgs[0].org.slug}`}
+                  className="group flex items-center gap-2 bg-stripe-purple hover:bg-stripe-purple/90 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all hover:shadow-lg hover:shadow-stripe-purple/25"
+                >
+                  {isHe ? 'דשבורד' : 'Dashboard'}
+                  <span className="inline-block w-0 overflow-hidden group-hover:w-4 transition-all duration-300 ease-out">
+                    <ArrowRight size={14} className={`inline ${direction === 'rtl' ? 'scale-x-[-1]' : ''}`} />
+                  </span>
+                </a>
+              ) : (
+                <Link
+                  to={isHe ? '/he/org-select' : '/org-select'}
+                  className="group flex items-center gap-2 bg-stripe-purple hover:bg-stripe-purple/90 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all hover:shadow-lg hover:shadow-stripe-purple/25"
+                >
+                  {isHe ? 'דשבורד' : 'Dashboard'}
+                  <span className="inline-block w-0 overflow-hidden group-hover:w-4 transition-all duration-300 ease-out">
+                    <ArrowRight size={14} className={`inline ${direction === 'rtl' ? 'scale-x-[-1]' : ''}`} />
+                  </span>
+                </Link>
+              )
+            ) : (
+              // Has no org — link to personal dashboard
+              <Link
+                to={isHe ? '/he/dashboard' : '/dashboard'}
+                className={`text-sm ${variant === 'dark' ? 'text-slate-800 hover:text-slate-900 hover:bg-slate-100' : 'text-white/80 hover:text-slate-900 hover:bg-white'} px-4 py-2 rounded-lg transition-all`}
+              >
+                {isHe ? 'החשבון שלי' : 'My Account'}
+              </Link>
+            )
+          ) : (
+            // ── Unauthenticated ────────────────────────────────
+            <>
+              <Link to={language === 'he' ? '/he/login' : '/login'} className={`text-sm ${variant === 'dark' ? 'text-slate-800 hover:text-slate-900 hover:bg-slate-100' : 'text-white/80 hover:text-slate-900 hover:bg-white'} px-4 py-2 rounded-lg transition-all`}>
+                {t.navbar.signIn}
+              </Link>
+              <Link
+                to={language === 'he' ? '/he/signup' : '/signup'}
+                className="group flex items-center gap-2 bg-stripe-purple hover:bg-stripe-purple/90 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all hover:shadow-lg hover:shadow-stripe-purple/25"
+                onClick={() => track(MARKETING.NAVBAR_CTA_CLICKED, 'MARKETING', { button_text: t.navbar.getStarted, destination: 'signup' })}
+              >
+                {t.navbar.getStarted}
+                <span className="inline-block w-0 overflow-hidden group-hover:w-4 transition-all duration-300 ease-out">
+                  <ArrowRight size={14} className={`inline ${direction === 'rtl' ? 'scale-x-[-1]' : ''}`} />
+                </span>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile toggle */}

@@ -2,7 +2,6 @@ import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { useAnalytics } from './hooks/useAnalytics';
-import { useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AccessibilityWidget from './components/AccessibilityWidget';
 
@@ -40,6 +39,9 @@ const ApiDocsPage        = lazy(() => import('./pages/ApiDocsPage'));
 const ChangelogPage      = lazy(() => import('./pages/Changelog'));
 const ChangelogPageHe    = lazy(() => import('./pages/ChangelogHe'));
 const LiveInbox          = lazy(() => import('./pages/LiveInbox'));
+const JoinOrg            = lazy(() => import('./pages/JoinOrg'));
+const Profile            = lazy(() => import('./pages/Profile'));
+const OrgSelectPage      = lazy(() => import('./pages/OrgSelectPage'));
 
 const LANG_PREF_KEY = 'nexus-lang-preference';
 
@@ -207,75 +209,21 @@ function PageLoader() {
 /** Chat widget rendered outside Routes so it persists across navigation. */
 function ChatWidget() {
   const { pathname } = useLocation();
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const language = pathname.startsWith('/he') ? 'he' : 'en';
-  const isHebrew = language === 'he';
-
-  // Three states: closed (initial), open (chat visible), minimized (compact bar)
-  type ChatState = 'closed' | 'open' | 'minimized';
-  const [chatState, setChatState] = useState<ChatState>(() => {
-    // If there's an active session in sessionStorage, start minimized
-    return sessionStorage.getItem('nexus-chat-session') ? 'minimized' : 'closed';
-  });
-  const [chatSessionId, setChatSessionId] = useState<string | null>(
-    () => sessionStorage.getItem('nexus-chat-session'),
-  );
-
-  const handleSessionCreated = (id: string) => {
-    setChatSessionId(id);
-    sessionStorage.setItem('nexus-chat-session', id);
-  };
-
-  const handleClose = () => {
-    // Full close — clear session so next open starts fresh
-    setChatState('closed');
-    setChatSessionId(null);
-    sessionStorage.removeItem('nexus-chat-session');
-  };
-
-  const handleMinimize = () => {
-    // Minimize — keep session so it can be resumed
-    setChatState('minimized');
-  };
 
   return (
     <LanguageProvider language={language}>
-      {chatState === 'closed' && (
+      {!isChatOpen && (
         <Suspense fallback={null}>
-          <ContactSalesButton onClick={() => setChatState('open')} />
+          <ContactSalesButton onClick={() => setIsChatOpen(true)} />
         </Suspense>
       )}
-      {chatState === 'minimized' && (
-        <>
-        <style>{`@keyframes barSlideUp { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }`}</style>
-        <button
-          onClick={() => setChatState('open')}
-          className="fixed bottom-0 z-50 bg-white rounded-t-2xl px-5 py-3 flex items-center gap-3 border border-b-0 border-slate-200 hover:bg-slate-50 transition-all cursor-pointer"
-          style={{
-            animation: 'barSlideUp 0.35s ease-out',
-            [isHebrew ? 'right' : 'left']: '1.5rem',
-            boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
-          }}
-        >
-          <div className="relative">
-            <img src="/nexus-favicon.png" alt="" className="w-8 h-8 rounded-full" />
-            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-          </div>
-          <div className={isHebrew ? 'text-right' : 'text-left'}>
-            <span className="text-sm font-semibold text-slate-800 block">Nexus AI</span>
-            <span className="text-[11px] text-slate-500">
-              {isHebrew ? 'לחץ להמשך שיחה' : 'Click to continue chat'}
-            </span>
-          </div>
-        </button>
-        </>
-      )}
-      {chatState === 'open' && (
+      {isChatOpen && (
         <Suspense fallback={null}>
           <LiveChat
-            onClose={handleClose}
-            onMinimize={handleMinimize}
-            existingSessionId={chatSessionId}
-            onSessionCreated={handleSessionCreated}
+            onClose={() => setIsChatOpen(false)}
+            onMinimize={() => setIsChatOpen(false)}
           />
         </Suspense>
       )}
@@ -284,18 +232,8 @@ function ChatWidget() {
 }
 
 function App() {
-  const { isLoading } = useAuth();
-  const { search } = useLocation();
-  // Capture whether we started with a ?code= param (OAuth callback).
-  // useState initializer runs once — persists even after navigate() clears the URL.
-  const [hadOAuthCode] = useState(() => new URLSearchParams(search).has('code'));
-
-  // While AuthContext is exchanging the OAuth code, show only the loader.
-  // This prevents the Home route from briefly rendering before the SPA redirect.
-  if (hadOAuthCode && isLoading) return <PageLoader />;
-
   return (
-    <>
+    <BrowserRouter>
       <RouteAnalytics />
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -355,11 +293,24 @@ function App() {
               <LiveInbox />
             </ProtectedRoute>
           } />
+          <Route path="/org-select"    element={<LanguageProvider language="en"><OrgSelectPage /></LanguageProvider>} />
+          <Route path="/he/org-select" element={<LanguageProvider language="he"><OrgSelectPage /></LanguageProvider>} />
+          <Route path="/join/:token" element={<JoinOrg />} />
+          <Route path="/profile" element={
+            <ProtectedRoute redirectTo="/login">
+              <Profile />
+            </ProtectedRoute>
+          } />
+          <Route path="/he/profile" element={
+            <ProtectedRoute redirectTo="/he/login">
+              <Profile />
+            </ProtectedRoute>
+          } />
         </Routes>
       </Suspense>
       <ChatWidget />
       <AccessibilityWidget />
-    </>
+    </BrowserRouter>
   );
 }
 

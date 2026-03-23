@@ -5,6 +5,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3001),
   FRONTEND_URL: z.string().trim().url(),
+  DASHBOARD_URL: z.string().trim().url().optional(),
+  USER_MGMT_URL: z.string().trim().url().optional(),
 
   // Database
   DATABASE_URL: z.string().min(1),

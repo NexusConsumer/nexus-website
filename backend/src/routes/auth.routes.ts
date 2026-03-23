@@ -27,7 +27,6 @@ const registerSchema = z.object({
     password: z.string().min(8).max(128),
     country: z.string().length(2).optional(),
     emailUpdates: z.boolean().optional(),
-    language: z.enum(['en', 'he']).optional(),
   }),
 });
 
@@ -42,17 +41,9 @@ router.post(
         ipAddress: req.ip,
       });
       // Send verification email instead of welcome email — account is not active until verified
-      const lang = (req.body.language as 'en' | 'he') ?? 'en';
-      let emailError: string | undefined;
-      try {
-        await EmailService.sendVerificationEmail(result.email, result.fullName, result.rawVerificationToken, lang);
-      } catch (err: any) {
-        emailError = err?.message ?? String(err);
-        console.error('[REGISTER EMAIL FAIL]', emailError);
-      }
-      res.status(201).json({ requiresVerification: true, email: result.email, ...(emailError ? { _emailError: emailError } : {}) });
-    } catch (err: any) {
-      console.error('[REGISTER]', err?.message, err?.constructor?.name, err?.code, err?.meta);
+      EmailService.sendVerificationEmail(result.email, result.fullName, result.rawVerificationToken).catch(console.error);
+      res.status(201).json({ requiresVerification: true, email: result.email });
+    } catch (err) {
       next(err);
     }
   },
@@ -117,7 +108,6 @@ router.post(
       res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(7 * 24 * 60 * 60 * 1000));
       res.json({ accessToken: result.accessToken, isNew: result.isNew ?? false });
     } catch (err) {
-      console.error('[Google OAuth] error:', err);
       next(err);
     }
   },
@@ -146,10 +136,7 @@ router.post(
 );
 
 const resendVerificationSchema = z.object({
-  body: z.object({
-    email: z.string().email(),
-    language: z.enum(['en', 'he']).optional(),
-  }),
+  body: z.object({ email: z.string().email() }),
 });
 
 router.post(
@@ -160,8 +147,7 @@ router.post(
     try {
       const result = await AuthService.resendVerification(req.body.email);
       if (result) {
-        const lang = (req.body.language as 'en' | 'he') ?? 'en';
-        EmailService.sendVerificationEmail(result.email, result.fullName, result.rawToken, lang).catch(console.error);
+        EmailService.sendVerificationEmail(result.email, result.fullName, result.rawToken).catch(console.error);
       }
       // Always return 200 to avoid leaking which emails are registered
       res.json({ message: 'If your email is registered and unverified, a new link has been sent.' });
@@ -184,7 +170,21 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
     });
     const user = await prisma.user.findUnique({
       where: { id: result.userId },
-      select: { id: true, email: true, fullName: true, role: true, avatarUrl: true, emailVerified: true, onboardingDone: true },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        avatarUrl: true,
+        emailVerified: true,
+        onboardingDone: true,
+        orgMemberships: {
+          select: {
+            role: true,
+            org: { select: { id: true, slug: true, name: true, logoUrl: true, primaryColor: true } },
+          },
+        },
+      },
     });
     const maxAge = result.ttlDays * 24 * 60 * 60 * 1000;
     res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(maxAge));
@@ -206,10 +206,7 @@ router.post('/logout', async (req: Request, res: Response, next: NextFunction) =
 });
 
 const forgotSchema = z.object({
-  body: z.object({
-    email: z.string().email(),
-    language: z.enum(['en', 'he']).optional(),
-  }),
+  body: z.object({ email: z.string().email() }),
 });
 
 router.post(
@@ -222,8 +219,7 @@ router.post(
       if (rawToken) {
         const user = await prisma.user.findUnique({ where: { email: req.body.email } });
         if (user) {
-          const lang = (req.body.language as 'en' | 'he') ?? 'en';
-          EmailService.sendPasswordResetEmail(user.email, user.fullName, rawToken, lang).catch(console.error);
+          EmailService.sendPasswordResetEmail(user.email, user.fullName, rawToken).catch(console.error);
         }
       }
       res.json({ message: 'If the email exists, a reset link has been sent.' });
@@ -314,8 +310,7 @@ router.post(
         return;
       }
       const token = signEmailVerificationToken(user.id, user.email);
-      const lang = (req.body?.language as 'en' | 'he') ?? 'en';
-      await EmailService.sendVerificationEmail(user.email, user.fullName, token, lang);
+      await EmailService.sendVerificationEmail(user.email, user.fullName, token);
       res.json({ message: 'Verification email sent' });
     } catch (err) {
       next(err);
@@ -340,6 +335,12 @@ router.get('/me', authenticate, async (req: Request, res: Response, next: NextFu
         lastLoginAt: true,
         createdAt: true,
         onboardingDone: true,
+        orgMemberships: {
+          select: {
+            role: true,
+            org: { select: { id: true, slug: true, name: true, logoUrl: true, primaryColor: true } },
+          },
+        },
       },
     });
     if (!user) {
