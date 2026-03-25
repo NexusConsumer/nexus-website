@@ -3,6 +3,7 @@ import * as MondayService from './monday.service';
 import * as EmailService from './email.service';
 import * as OutlookGraph from './outlook-graph.service';
 import * as WhatsApp from './whatsapp-provider';
+import { pushService } from './push.service';
 import { broadcastToAdmins } from '../socket';
 import * as AnalyticsService from './analytics.service';
 import { env } from '../config/env';
@@ -58,6 +59,9 @@ export async function handleVisitorArrival(data: {
     apolloData: apolloData ?? undefined,
   });
   await WhatsApp.notifyAgent(waMsg);
+
+  // 4. Browser push
+  pushService.sendPushToAll({ title, body, url: '/admin', tag: 'visitor' }).catch(() => {});
 }
 
 // ─── Chat session opened ──────────────────────────────────
@@ -111,6 +115,9 @@ export async function handleChatOpened(data: {
     apolloData: apolloData ?? undefined,
   });
   await WhatsApp.notifyAgent(waMsg);
+
+  // Browser push
+  pushService.sendPushToAll({ title, body: data.page ? `דף: ${data.page}` : '', url: '/admin/inbox', tag: `chat-${data.sessionId}` }).catch(() => {});
 }
 
 // ─── Chat escalated to human ──────────────────────────────
@@ -155,6 +162,14 @@ export async function handleChatEscalated(data: {
     leadData: data.leadData,
     timestamp: notification.createdAt,
   });
+
+  // Browser push — urgent
+  pushService.sendPushToAll({
+    title: `צ'אט דורש נציג - ${topicLabel}`,
+    body: data.leadData?.name ? `${data.leadData.name} — ${data.page ?? ''}` : body.slice(0, 100),
+    url: '/admin/inbox',
+    tag: `escalate-${data.sessionId}`,
+  }).catch(() => {});
 
   // ─── WhatsApp notification with takeover instructions ────
 
@@ -262,6 +277,9 @@ export async function handleLeadSubmitted(data: {
   // WhatsApp
   const waMsg = WhatsApp.formatLeadAlert(data);
   await WhatsApp.notifyAgent(waMsg).catch(console.error);
+
+  // Browser push
+  pushService.notifyNewLead({ name: data.fullName ?? data.email ?? 'Unknown', email: data.email }).catch(() => {});
 }
 
 // ─── Get unread notifications ─────────────────────────────

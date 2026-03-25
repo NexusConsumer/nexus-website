@@ -106,7 +106,7 @@ export async function getAllSessions(filter?: {
   mode?: string;
   limit?: number;
 }) {
-  return prisma.chatSession.findMany({
+  const sessions = await prisma.chatSession.findMany({
     where: {
       ...(filter?.status && { status: filter.status as 'OPEN' | 'PENDING_HUMAN' | 'RESOLVED' | 'CLOSED' }),
       ...(filter?.mode && { mode: filter.mode as 'AI' | 'HUMAN' }),
@@ -116,6 +116,16 @@ export async function getAllSessions(filter?: {
     include: {
       messages: { orderBy: { createdAt: 'desc' }, take: 1 },
     },
+  });
+
+  // Enrich WhatsApp sessions with cached contact info from metadata
+  return sessions.map((s) => {
+    const meta = (s.metadata as Record<string, unknown>) ?? {};
+    return {
+      ...s,
+      waContactName:   (meta.waContactName as string) ?? null,
+      waContactAvatar: (meta.waContactAvatar as string) ?? null,
+    };
   });
 }
 
@@ -173,6 +183,25 @@ export async function upsertLeadFromChat(sessionId: string, leadData: Record<str
       },
     });
   }
+}
+
+// ─── Cache WhatsApp contact info in session metadata ─────
+
+export async function cacheWaContactInfo(sessionId: string, name: string | null, avatar: string | null) {
+  const session = await prisma.chatSession.findUnique({ where: { id: sessionId } });
+  if (!session) return;
+
+  const meta = (session.metadata as Record<string, unknown>) ?? {};
+  await prisma.chatSession.update({
+    where: { id: sessionId },
+    data: {
+      metadata: {
+        ...meta,
+        ...(name && { waContactName: name }),
+        ...(avatar && { waContactAvatar: avatar }),
+      },
+    },
+  });
 }
 
 // ─── Update session metadata (Apollo enrichment) ──────────
