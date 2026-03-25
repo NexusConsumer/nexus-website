@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { env } from '../config/env';
 import * as ChatService from './chat.service';
 import * as WhatsAppProvider from './whatsapp-provider';
+import { pushService } from './push.service';
 import { getIO, broadcastToAdmins } from '../socket';
 
 // ─── Command Parsing ─────────────────────────────────────
@@ -411,6 +412,13 @@ async function handleCustomerWhatsAppMessage(data: {
   await WhatsAppProvider.notifyAgent(
     `💬 *הודעה חדשה מ-${contactLabel}*\nסשן: ${shortId}\n\n${preview}\n\n👉 להשיב:\n${shortId}: ההודעה שלך`,
   ).catch(console.error);
+
+  // 7. Browser push notification
+  pushService.notifyNewChatMessage({
+    sessionId: session.id,
+    senderName: contactLabel,
+    text: preview,
+  }).catch(() => {});
 }
 
 // ─── Outgoing WhatsApp Message (sent from phone) ──────────

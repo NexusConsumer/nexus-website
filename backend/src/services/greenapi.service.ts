@@ -87,6 +87,37 @@ export async function setSettings(settings: Record<string, unknown>): Promise<bo
   }
 }
 
+// ─── Get WhatsApp contact info (name, avatar) ──────────
+
+export async function getContactInfo(chatId: string): Promise<{
+  name: string | null;
+  avatar: string | null;
+} | null> {
+  if (!env.GREEN_API_ID_INSTANCE || !env.GREEN_API_TOKEN) return null;
+
+  try {
+    const [infoRes, avatarRes] = await Promise.allSettled([
+      axios.post(buildUrl('getContactInfo'), { chatId }),
+      axios.post(buildUrl('getAvatar'), { chatId }),
+    ]);
+
+    const name = infoRes.status === 'fulfilled'
+      ? (infoRes.value.data?.name || infoRes.value.data?.contactName || null)
+      : null;
+
+    const avatar = avatarRes.status === 'fulfilled'
+      ? (avatarRes.value.data?.urlAvatar || null)
+      : null;
+
+    return { name, avatar };
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      console.error('[GreenAPI] getContactInfo error:', err.response?.data);
+    }
+    return null;
+  }
+}
+
 // ─── Ensure outgoing webhooks are enabled ────────────────
 
 export async function ensureOutgoingWebhooksEnabled(webhookUrl: string): Promise<{

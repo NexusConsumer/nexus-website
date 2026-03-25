@@ -8,6 +8,7 @@ import * as ChatService from '../services/chat.service';
 import * as AiService from '../services/ai.service';
 import * as SalesAgentClient from '../services/sales-agent-client';
 import * as NotificationService from '../services/notification.service';
+import { pushService } from '../services/push.service';
 import * as EmailService from '../services/email.service';
 import * as OutlookGraph from '../services/outlook-graph.service';
 import * as WhatsAppProvider from '../services/whatsapp-provider';
@@ -149,6 +150,13 @@ router.post(
         mediaType: (customerMsg as any).mediaType ?? undefined,
         fileName: (customerMsg as any).fileName ?? undefined,
       });
+
+      // 2b. Browser push notification for new customer message
+      pushService.notifyNewChatMessage({
+        sessionId,
+        senderName: visitorId.slice(-6),
+        text,
+      }).catch(() => {});
 
       // 3. Mirror customer message to email thread (all modes)
       const shortId = sessionId.slice(-8);
@@ -607,6 +615,50 @@ router.patch(
       const io = getIO();
       io.to(`session:${req.params.id}`).emit('session_closed', {});
       res.json(session);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ─── GET /api/chat/sessions/:id/wa-contact ────────────────
+
+router.get(
+  '/sessions/:id/wa-contact',
+  authenticate,
+  requireAgent,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const session = await ChatService.getSession(req.params.id);
+      if (!session) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      // Check metadata cache first
+      const meta = (session.metadata as Record<string, unknown>) ?? {};
+      if (meta.waContactName || meta.waContactAvatar) {
+        res.json({ name: meta.waContactName ?? null, avatar: meta.waContactAvatar ?? null });
+        return;
+      }
+
+      // No cached data — fetch from Green API
+      const waThread = (session as any).waThreadId as string | undefined;
+      if (!waThread) {
+        res.json({ name: null, avatar: null });
+        return;
+      }
+
+      const contact = await WhatsAppProvider.getContactInfo(
+        waThread.includes('@') ? waThread : `${waThread.replace(/[^0-9]/g, '')}@c.us`
+      );
+
+      // Cache in session metadata for next time
+      if (contact && (contact.name || contact.avatar)) {
+        ChatService.cacheWaContactInfo(req.params.id, contact.name, contact.avatar).catch(console.error);
+      }
+
+      res.json({ name: contact?.name ?? null, avatar: contact?.avatar ?? null });
     } catch (err) {
       next(err);
     }

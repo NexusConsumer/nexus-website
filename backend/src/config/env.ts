@@ -73,6 +73,11 @@ const envSchema = z.object({
   AGENT_API_URL: z.string().url().optional(),  // e.g. https://nexus-agents-production-ed8b.up.railway.app
   AGENT_API_KEY: z.string().min(1).optional(), // must match SEO_AGENT_API_KEY on the agent service
 
+  // Web Push (VAPID) — optional (push notifications disabled when absent)
+  // Generate with: npx web-push generate-vapid-keys
+  VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+  VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+
 });
 
 // Validate on startup — crash fast if core vars missing
@@ -95,6 +100,7 @@ const optional = {
   'Monday.com CRM': env.MONDAY_API_TOKEN,
   'Email (SMTP)': env.SMTP_HOST,
   'Email (SendPulse API fallback)': env.SENDPULSE_CLIENT_ID,
+  'Web Push Notifications': env.VAPID_PUBLIC_KEY,
 };
 for (const [feature, key] of Object.entries(optional)) {
   if (!key) console.warn(`⚠️  ${feature} disabled — env var not set`);

@@ -615,6 +615,49 @@ video:focus-visible {
   text-align: right;
 }
 
+/* ── Inbox sidebar scrollbar — visible and grabbable ── */
+.inbox-sidebar-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #c7c7cc transparent;
+}
+
+.inbox-sidebar-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.inbox-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.inbox-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #c7c7cc;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.inbox-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a6;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.dark .inbox-sidebar-scroll {
+  scrollbar-color: #4b5563 transparent;
+}
+
+.dark .inbox-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.dark .inbox-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
 /* RTL Animation adjustments */
 @keyframes slideInLeftRTL {
   from {

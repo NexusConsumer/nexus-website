@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { api, API_URL, getAccessToken } from '../lib/api';
 import { io, Socket } from 'socket.io-client';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -12,6 +13,8 @@ interface ChatSession {
   mode: 'AI' | 'HUMAN';
   assignedAgentName?: string | null;
   metadata?: Record<string, unknown> | null;
+  waContactName?: string | null;
+  waContactAvatar?: string | null;
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];
@@ -83,6 +86,7 @@ function InboxContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const push = usePushNotifications();
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
@@ -390,6 +394,39 @@ function InboxContent() {
 
   const filteredSessions = sessions;
 
+  /** Display name: WhatsApp name > assignedAgentName > shortId */
+  const sessionDisplayName = (session: ChatSession) =>
+    session.waContactName || shortId(session.id);
+
+  /** Avatar initials: from WA name or shortId */
+  const sessionInitials = (session: ChatSession) => {
+    if (session.waContactName) {
+      return session.waContactName.slice(0, 2).toUpperCase();
+    }
+    return shortId(session.id).slice(0, 2).toUpperCase();
+  };
+
+  /** Fetch WhatsApp contact info for active session (lazy, cached on server) */
+  useEffect(() => {
+    if (!activeSessionId) return;
+    const session = sessions.find(s => s.id === activeSessionId);
+    if (!session?.messages?.some(m => (m as any).channel === 'WHATSAPP') && !session?.waContactName) return;
+    // Already have cached data
+    if (session.waContactName || session.waContactAvatar) return;
+
+    api.get<{ name: string | null; avatar: string | null }>(
+      `/api/chat/sessions/${activeSessionId}/wa-contact`
+    ).then((data) => {
+      if (data.name || data.avatar) {
+        setSessions(prev => prev.map(s =>
+          s.id === activeSessionId
+            ? { ...s, waContactName: data.name, waContactAvatar: data.avatar }
+            : s
+        ));
+      }
+    }).catch(() => {}); // non-critical
+  }, [activeSessionId, sessions]);
+
   const visitorPage = (session: ChatSession | undefined) => {
     if (!session?.metadata) return null;
     return (session.metadata as Record<string, unknown>).page as string | undefined;
@@ -428,9 +465,31 @@ function InboxContent() {
           <div className="p-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-bold text-lg text-slate-900 dark:text-white">צ'אטים</h3>
-              <span className="text-xs font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                {sessions.length}
-              </span>
+              <div className="flex items-center gap-2">
+                {push.isSupported && (
+                  <button
+                    onClick={() => push.isSubscribed ? push.unsubscribe() : push.subscribe()}
+                    disabled={push.loading}
+                    title={push.isSubscribed ? 'כיבוי התראות' : 'הפעלת התראות'}
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      push.isSubscribed
+                        ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400'
+                        : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500 hover:text-slate-600'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      {push.isSubscribed ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.143 17.082a24.248 24.248 0 003.714.318 23.997 23.997 0 003.714-.318m-7.428 0a3 3 0 105.714 0m-5.714 0a23.848 23.848 0 01-5.454-1.31A8.967 8.967 0 006 9.75V9a6 6 0 0112 0v.75M3.124 15.772A8.96 8.96 0 003.75 9.75m16.5 6.022A8.96 8.96 0 0020.25 9.75M15 9v.75" />
+                      )}
+                    </svg>
+                  </button>
+                )}
+                <span className="text-xs font-mono text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                  {sessions.length}
+                </span>
+              </div>
             </div>
             <div className="flex gap-1.5">
               {(['open', 'human', 'closed'] as const).map(tab => (
@@ -450,7 +509,7 @@ function InboxContent() {
           </div>
 
           {/* Session List */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto inbox-sidebar-scroll">
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="w-6 h-6 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
@@ -470,9 +529,13 @@ function InboxContent() {
                 }`}
               >
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
-                    <span className="text-slate-400 font-bold text-xs">{shortId(session.id).slice(0, 2).toUpperCase()}</span>
-                  </div>
+                  {session.waContactAvatar ? (
+                    <img src={session.waContactAvatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                      <span className="text-slate-400 font-bold text-xs">{sessionInitials(session)}</span>
+                    </div>
+                  )}
                   <div className={`absolute -bottom-0.5 -end-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${
                     session.status === 'OPEN' ? 'bg-green-500' : session.status === 'PENDING_HUMAN' ? 'bg-amber-500' : 'bg-slate-300'
                   }`} />
@@ -480,7 +543,7 @@ function InboxContent() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-slate-800 dark:text-white truncate">
-                      {shortId(session.id)}
+                      {sessionDisplayName(session)}
                     </span>
                     <span className="text-[10px] text-slate-400 shrink-0 ms-2">
                       {timeAgo(session.updatedAt)}
@@ -520,12 +583,16 @@ function InboxContent() {
                   </svg>
                 </button>
               )}
-              <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
-                <span className="text-slate-400 font-bold text-xs">{shortId(activeSession.id).slice(0, 2).toUpperCase()}</span>
-              </div>
+              {activeSession.waContactAvatar ? (
+                <img src={activeSession.waContactAvatar} alt="" className="w-9 h-9 rounded-full object-cover" />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                  <span className="text-slate-400 font-bold text-xs">{sessionInitials(activeSession)}</span>
+                </div>
+              )}
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">{shortId(activeSession.id)}</h4>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">{sessionDisplayName(activeSession)}</h4>
                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                     activeSession.mode === 'HUMAN'
                       ? 'bg-indigo-100 text-indigo-600'
@@ -803,10 +870,14 @@ function InboxContent() {
           <div className="p-5 space-y-5">
             {/* Session Info */}
             <div className="text-center pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mx-auto mb-3">
-                <span className="text-slate-400 font-bold text-lg">{shortId(activeSession.id).slice(0, 2).toUpperCase()}</span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{shortId(activeSession.id)}</h3>
+              {activeSession.waContactAvatar ? (
+                <img src={activeSession.waContactAvatar} alt="" className="w-16 h-16 rounded-full object-cover mx-auto mb-3" />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mx-auto mb-3">
+                  <span className="text-slate-400 font-bold text-lg">{sessionInitials(activeSession)}</span>
+                </div>
+              )}
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{sessionDisplayName(activeSession)}</h3>
               <p className="text-sm text-slate-500 font-mono mt-1">{activeSession.visitorId.slice(0, 16)}...</p>
               <div className="flex flex-wrap gap-1.5 justify-center mt-3">
                 <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${

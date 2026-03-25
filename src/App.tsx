@@ -210,11 +210,16 @@ function PageLoader() {
   );
 }
 
-/** Chat widget rendered outside Routes so it persists across navigation. */
+/** Chat widget rendered outside Routes so it persists across navigation.
+ *  Hidden on admin/inbox pages where it would overlap the dashboard UI. */
 function ChatWidget() {
   const { pathname } = useLocation();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const language = pathname.startsWith('/he') ? 'he' : 'en';
+
+  // Hide on admin pages
+  const isAdmin = pathname.includes('/admin') || pathname.includes('/inbox');
+  if (isAdmin) return null;
 
   return (
     <LanguageProvider language={language}>
@@ -233,6 +238,14 @@ function ChatWidget() {
       )}
     </LanguageProvider>
   );
+}
+
+/** Hide accessibility widget on admin pages */
+function ConditionalAccessibility() {
+  const { pathname } = useLocation();
+  const isAdmin = pathname.includes('/admin') || pathname.includes('/inbox');
+  if (isAdmin) return null;
+  return <AccessibilityWidget />;
 }
 
 function App() {
@@ -331,7 +344,7 @@ function App() {
         </Routes>
       </Suspense>
       <ChatWidget />
-      <AccessibilityWidget />
+      <ConditionalAccessibility />
     </BrowserRouter>
   );
 }

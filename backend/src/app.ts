@@ -27,6 +27,7 @@ import seoRoutes from './routes/seo.routes';
 import adminUsersRoutes from './routes/admin.users.routes';
 import orgsRoutes from './routes/orgs.routes';
 import invitesRoutes from './routes/invites.routes';
+import pushRoutes from './routes/push.routes';
 import { prisma } from './config/database';
 const app = express();
 app.set('trust proxy', 1);
@@ -116,6 +117,7 @@ app.use('/api/admin/seo', adminSeoRoutes);
 app.use('/api/seo', seoRoutes);
 app.use('/api/orgs', orgsRoutes);
 app.use('/api/invites', invitesRoutes);
+app.use('/api/push', pushRoutes);
 
 // ─── Dynamic sitemap.xml (must be before static middleware) ──────────────────
 app.get('/sitemap.xml', async (_req, res, next) => {
