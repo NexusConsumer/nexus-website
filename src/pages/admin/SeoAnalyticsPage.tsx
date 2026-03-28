@@ -644,7 +644,7 @@ export default function SeoAnalyticsPage() {
               {isHe ? 'מגמות חיפוש — עניין לאורך זמן' : 'Search Trends — Interest Over Time'}
             </h2>
             {errors.trendsInterest ? (
-              <UnavailableCard isHe={isHe} />
+              <UnavailableCard isHe={isHe} message={isHe ? 'Google Trends לא זמין כרגע — נסה שוב מאוחר יותר' : 'Google Trends temporarily unavailable — try again later'} />
             ) : trendsInterest && trendsInterest.timeline?.length > 0 ? (
               <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -702,7 +702,7 @@ export default function SeoAnalyticsPage() {
               {isHe ? 'שאילתות עולות' : 'Rising Queries'}
             </h2>
             {errors.trendsRelated ? (
-              <UnavailableCard isHe={isHe} />
+              <UnavailableCard isHe={isHe} message={isHe ? 'Google Trends לא זמין כרגע — נסה שוב מאוחר יותר' : 'Google Trends temporarily unavailable — try again later'} />
             ) : trendsRelated && trendsRelated.rising?.length > 0 ? (
               <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -765,7 +765,7 @@ export default function SeoAnalyticsPage() {
               {isHe ? 'טרנדים בישראל היום' : 'Trending in Israel Today'}
             </h2>
             {errors.dailyTrends ? (
-              <UnavailableCard isHe={isHe} />
+              <UnavailableCard isHe={isHe} message={isHe ? 'Google Trends לא זמין כרגע — נסה שוב מאוחר יותר' : 'Google Trends temporarily unavailable — try again later'} />
             ) : dailyTrends && dailyTrends.trending?.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {dailyTrends.trending.slice(0, 9).map((t, i) => (
@@ -833,11 +833,11 @@ function KpiCard({
   );
 }
 
-function UnavailableCard({ isHe }: { isHe: boolean }) {
+function UnavailableCard({ isHe, message }: { isHe: boolean; message?: string }) {
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-amber-700 text-sm flex items-center gap-2">
       <AlertTriangle size={16} />
-      {isHe ? 'נתון לא זמין כרגע' : 'Data currently unavailable'}
+      {message ?? (isHe ? 'נתון לא זמין כרגע' : 'Data currently unavailable')}
     </div>
   );
 }
