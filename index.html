@@ -10,6 +10,8 @@
     <script>if(window.location.hostname==='docs.nexus-payment.com'){document.write('<link rel="icon" type="image/png" href="/nexus-api-favicon.png">');}else{document.write('<link rel="icon" type="image/svg+xml" href="/nexus-favicon.svg"><link rel="icon" type="image/png" href="/nexus-favicon.png">');};</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Nexus — Build your financial product</title>
+    <!-- Set Hebrew title synchronously for /he routes to avoid title flash before React loads -->
+    <script>if(window.location.pathname.startsWith('/he')){document.title='Nexus — בנה את המוצר הפיננסי שלך';}</script>
 
     <!-- Open Graph / Social Sharing (static defaults — overridden per-page by useSEO hook) -->
     <meta property="og:title" content="Nexus — Build your financial product" />
