@@ -53,6 +53,36 @@ interface GoogleAuthResponse {
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
+const googleCodeRequests = new Map<string, Promise<GoogleAuthResponse>>();
+
+/**
+ * Exchanges a Google OAuth code exactly once in dev StrictMode.
+ * Input: Google code from the browser URL.
+ * Output: backend auth response containing website tokens and dashboard handoff data.
+ */
+function exchangeGoogleCodeOnce(code: string): Promise<GoogleAuthResponse> {
+  const existingRequest = googleCodeRequests.get(code);
+  if (existingRequest) return existingRequest;
+
+  const request = api.post<GoogleAuthResponse>('/api/auth/google', {
+    code,
+    redirectUri: window.location.origin,
+  });
+
+  googleCodeRequests.set(code, request);
+  return request;
+}
+
+/**
+ * Logs auth handoff details only in local development.
+ * Input: message and optional metadata safe for browser console.
+ * Output: no value; writes to console only during Vite dev mode.
+ */
+function logAuthHandoff(message: string, data?: Record<string, unknown>): void {
+  if (!import.meta.env.DEV) return;
+  console.info(`[Nexus auth] ${message}`, data ?? {});
+}
+
 /**
  * Builds a dashboard callback URL for a one-time SSO code.
  * Input: backend-issued code and dashboard path to open after exchange.
@@ -109,17 +139,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clean the URL immediately so a refresh doesn't re-submit the code
       window.history.replaceState({}, document.title, window.location.pathname);
       setIsLoading(true);
-      api.post<GoogleAuthResponse>('/api/auth/google', {
-        code,
-        redirectUri: window.location.origin,
-      })
+      logAuthHandoff('Google callback detected; exchanging code');
+      exchangeGoogleCodeOnce(code)
         .then(async (data) => {
           sessionStorage.removeItem('google_oauth_redirect');
+          logAuthHandoff('Google exchange succeeded', {
+            hasDashboardUrl: Boolean(data.dashboardUrl),
+            hasDashboardCode: Boolean(data.dashboardCode),
+          });
+
           if (data.dashboardUrl) {
+            logAuthHandoff('Redirecting to dashboard callback', { dashboardUrl: data.dashboardUrl });
             window.location.replace(data.dashboardUrl);
             return;
           }
 
+          if (data.dashboardCode) {
+            const fallbackDashboardUrl = buildDashboardCallbackUrl(data.dashboardCode, '/');
+            logAuthHandoff('Redirecting to dashboard callback from code fallback', {
+              dashboardUrl: fallbackDashboardUrl,
+            });
+            window.location.replace(fallbackDashboardUrl);
+            return;
+          }
+
+          logAuthHandoff('Dashboard URL missing; using profile fallback');
           setAccessToken(data.accessToken);
           const profile = await api.get<AuthUser>('/api/auth/me');
           setUser(profile);
@@ -130,7 +174,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           await redirectDashboardUser(profile, data.dashboardCode);
         })
-        .catch(console.error)
+        .catch((error: unknown) => {
+          console.error('[Nexus auth] Google dashboard handoff failed', error);
+        })
         .finally(() => setIsLoading(false));
       return;
     }
