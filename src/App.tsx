@@ -71,6 +71,14 @@ function RootRoute() {
 // This avoids a 1-3 second spinner (which killed mobile LCP).
 function GeoDetectHome() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  /**
+   * Builds the Hebrew root redirect target without losing OAuth query data.
+   * Input: current browser location from React Router.
+   * Output: /he path with the original query string and hash preserved.
+   */
+  const hebrewRootPath = `/he${location.search}${location.hash}`;
 
   // Synchronous: do we already know the user wants Hebrew?
   const knownHe = (() => {
@@ -84,14 +92,14 @@ function GeoDetectHome() {
     const stored = localStorage.getItem(LANG_PREF_KEY);
 
     if (stored === 'he') {
-      navigate('/he', { replace: true });
+      navigate(hebrewRootPath, { replace: true });
       return;
     }
 
     const browserLang = navigator.language ?? '';
     if (!stored && browserLang.toLowerCase().startsWith('he')) {
       localStorage.setItem(LANG_PREF_KEY, 'he');
-      navigate('/he', { replace: true });
+      navigate(hebrewRootPath, { replace: true });
       return;
     }
 
@@ -104,12 +112,12 @@ function GeoDetectHome() {
       .then((country) => {
         const lang = country.trim() === 'IL' ? 'he' : 'en';
         localStorage.setItem(LANG_PREF_KEY, lang);
-        if (lang === 'he') navigate('/he', { replace: true });
+        if (lang === 'he') navigate(hebrewRootPath, { replace: true });
         // if 'en', stay (Home is already visible)
       })
       .catch(() => {
         localStorage.setItem(LANG_PREF_KEY, 'he');
-        navigate('/he', { replace: true });
+        navigate(hebrewRootPath, { replace: true });
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
