@@ -35,12 +35,13 @@ const authCodeSchema = z.object({
  * Input: backend-issued dashboard code.
  * Output: absolute dashboard callback URL, or undefined when no dashboard URL is configured.
  */
-function buildDashboardCallbackUrl(code: string): string | undefined {
+function buildDashboardCallbackUrl(code: string, language: 'he' | 'en' = 'en'): string | undefined {
   if (!env.DASHBOARD_URL) return undefined;
 
   const url = new URL('/auth/callback', env.DASHBOARD_URL);
   url.searchParams.set('code', code);
   url.searchParams.set('redirect', '/');
+  url.searchParams.set('lang', language);
   return url.toString();
 }
 
@@ -108,6 +109,7 @@ const googleSchema = z.object({
       code: z.string().min(1).optional(),
       accessToken: z.string().min(1).optional(),
       redirectUri: z.string().url().optional(),
+      language: z.enum(['he', 'en']).optional(),
     })
     .refine((d) => d.idToken || d.code || d.accessToken, {
       message: 'idToken, code, or accessToken is required',
@@ -130,7 +132,7 @@ router.post(
         result = await AuthService.googleAuth(req.body.idToken, meta);
       }
       const dashboardCode = AuthService.createDashboardAuthCode(result.userId);
-      const dashboardUrl = buildDashboardCallbackUrl(dashboardCode);
+      const dashboardUrl = buildDashboardCallbackUrl(dashboardCode, req.body.language ?? 'en');
       res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(7 * 24 * 60 * 60 * 1000));
       res.json({ accessToken: result.accessToken, dashboardCode, dashboardUrl, isNew: result.isNew ?? false });
     } catch (err) {
@@ -246,7 +248,10 @@ router.post('/logout', async (req: Request, res: Response, next: NextFunction) =
 });
 
 const forgotSchema = z.object({
-  body: z.object({ email: z.string().email() }),
+  body: z.object({
+    email: z.string().email(),
+    language: z.enum(['en', 'he']).optional(),
+  }),
 });
 
 router.post(
@@ -255,11 +260,12 @@ router.post(
   validate(forgotSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const rawToken = await AuthService.forgotPassword(req.body.email);
+      const email = req.body.email.toLowerCase().trim();
+      const rawToken = await AuthService.forgotPassword(email);
       if (rawToken) {
-        const user = await prisma.user.findUnique({ where: { email: req.body.email } });
+        const user = await prisma.user.findUnique({ where: { email } });
         if (user) {
-          EmailService.sendPasswordResetEmail(user.email, user.fullName, rawToken).catch(console.error);
+          EmailService.sendPasswordResetEmail(user.email, user.fullName, rawToken, req.body.language ?? 'en').catch(console.error);
         }
       }
       res.json({ message: 'If the email exists, a reset link has been sent.' });
