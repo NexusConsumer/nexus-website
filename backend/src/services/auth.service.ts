@@ -419,7 +419,7 @@ export async function logout(rawToken: string) {
 
 export async function forgotPassword(email: string): Promise<string | null> {
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
-  if (!user || user.provider !== 'EMAIL') return null;
+  if (!user || !user.passwordHash) return null;
 
   await prisma.passwordReset.updateMany({
     where: { userId: user.id, used: false },

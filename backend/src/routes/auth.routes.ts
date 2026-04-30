@@ -248,7 +248,10 @@ router.post('/logout', async (req: Request, res: Response, next: NextFunction) =
 });
 
 const forgotSchema = z.object({
-  body: z.object({ email: z.string().email() }),
+  body: z.object({
+    email: z.string().email(),
+    language: z.enum(['en', 'he']).optional(),
+  }),
 });
 
 router.post(
@@ -257,11 +260,12 @@ router.post(
   validate(forgotSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const rawToken = await AuthService.forgotPassword(req.body.email);
+      const email = req.body.email.toLowerCase().trim();
+      const rawToken = await AuthService.forgotPassword(email);
       if (rawToken) {
-        const user = await prisma.user.findUnique({ where: { email: req.body.email } });
+        const user = await prisma.user.findUnique({ where: { email } });
         if (user) {
-          EmailService.sendPasswordResetEmail(user.email, user.fullName, rawToken).catch(console.error);
+          EmailService.sendPasswordResetEmail(user.email, user.fullName, rawToken, req.body.language ?? 'en').catch(console.error);
         }
       }
       res.json({ message: 'If the email exists, a reset link has been sent.' });
