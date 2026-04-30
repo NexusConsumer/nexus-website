@@ -5,9 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "prebuild": "node scripts/build-frontend.js",
     "build": "tsc",
-    "start": "prisma migrate deploy && tsx prisma/seed.ts && node dist/index.js",
+    "start": "prisma migrate deploy && node dist/index.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
