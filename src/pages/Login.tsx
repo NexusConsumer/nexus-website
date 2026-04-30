@@ -40,7 +40,7 @@ export default function Login() {
   // Support ?next= redirect (e.g. from /join/:token)
   const nextPath = new URLSearchParams(search).get('next');
 
-  const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:5174';
+  const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? '';
 
   /**
    * Builds the dashboard callback URL that exchanges a one-time code.
