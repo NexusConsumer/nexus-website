@@ -24,6 +24,7 @@ import { pollInbox } from './services/outlook-inbound.service';
 import * as GreenApi from './services/greenapi.service';
 
 const PORT = env.PORT;
+const BACKEND_URL = env.BACKEND_URL ?? env.FRONTEND_URL;
 
 // ─── Auto-seed knowledge base on first run ────────────────
 async function seedKnowledgeIfEmpty() {
@@ -198,7 +199,7 @@ async function bootstrap() {
 
   // 6. Green API — auto-fix outgoing webhook settings on startup
   if (env.GREEN_API_ID_INSTANCE && env.GREEN_API_TOKEN) {
-    const webhookUrl = `${env.FRONTEND_URL}/api/webhooks/greenapi`;
+    const webhookUrl = `${BACKEND_URL}/api/webhooks/greenapi`;
     GreenApi.ensureOutgoingWebhooksEnabled(webhookUrl)
       .then(({ changed, settings }) => {
         if (changed) {

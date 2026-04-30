@@ -13,7 +13,7 @@ import {
 import { api, setAccessToken, refreshAccessToken } from '../lib/api';
 import { getVisitorId } from '../lib/visitorId';
 
-const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? 'http://localhost:5174';
+const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? '';
 
 export interface AuthUser {
   id: string;

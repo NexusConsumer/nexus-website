@@ -347,7 +347,7 @@ router.post('/greenapi/fix-settings', async (req: Request, res: Response) => {
       rawBody = {};
     }
     const webhookUrl = rawBody?.webhookUrl
-      || `${env.FRONTEND_URL}/api/webhooks/greenapi`;
+      || `${env.BACKEND_URL ?? env.FRONTEND_URL}/api/webhooks/greenapi`;
 
     const result = await GreenApi.ensureOutgoingWebhooksEnabled(webhookUrl);
     res.json({

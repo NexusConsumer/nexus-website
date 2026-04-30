@@ -1,3 +1,8 @@
+/**
+ * Validates and exports backend environment variables at process startup.
+ * Required values fail fast so a Railway deployment cannot boot with broken
+ * secrets, database settings, or public service URLs.
+ */
 import { z } from 'zod';
 
 const envSchema = z.object({
@@ -5,6 +10,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3001),
   FRONTEND_URL: z.string().trim().url(),
+  BACKEND_URL: z.string().trim().url().optional(),
   DASHBOARD_URL: z.string().trim().url().optional(),
   USER_MGMT_URL: z.string().trim().url().optional(),
 
