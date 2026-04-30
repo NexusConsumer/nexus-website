@@ -51,6 +51,7 @@ const envSchema = z.object({
   SENDPULSE_CLIENT_ID: z.string().min(1).optional(),
   SENDPULSE_CLIENT_SECRET: z.string().min(1).optional(),
   EMAIL_FROM: z.string().email().optional(),
+  EMAIL_ASSET_BASE_URL: z.string().trim().url().optional(),
 
   // Monday.com CRM — optional (CRM disabled when absent)
   MONDAY_API_TOKEN: z.string().min(1).optional(),
