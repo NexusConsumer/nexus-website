@@ -17,6 +17,8 @@ import app from './app';
 import { initSocket } from './socket';
 import { env } from './config/env';
 import { prisma } from './config/database';
+import { closeMongoConnection, getMongoDb, verifyMongoConnection } from './config/mongo';
+import { ensureOnboardingIndexes } from './models/onboarding.models';
 import { scheduleDailyDigest } from './jobs/dailyDigest';
 import { embedText } from './services/ai.service';
 import { scheduleBiRefresh } from './jobs/biRefresh';
@@ -180,6 +182,16 @@ async function bootstrap() {
     process.exit(1);
   }
 
+  // 1b. Test MongoDB connection and prepare product-domain indexes.
+  try {
+    await verifyMongoConnection();
+    await ensureOnboardingIndexes(await getMongoDb());
+    console.log('✅ MongoDB connected');
+  } catch (err) {
+    console.error('❌ MongoDB connection failed:', err);
+    process.exit(1);
+  }
+
   // 2. Auto-seed knowledge base on first boot
   try {
     await seedKnowledgeIfEmpty();
@@ -236,6 +248,7 @@ async function bootstrap() {
     console.log('SIGTERM received — shutting down gracefully');
     httpServer.close(async () => {
       await prisma.$disconnect();
+      await closeMongoConnection();
       console.log('Server closed');
       process.exit(0);
     });

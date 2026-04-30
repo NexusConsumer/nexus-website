@@ -16,6 +16,8 @@ const envSchema = z.object({
 
   // Database
   DATABASE_URL: z.string().min(1),
+  MONGODB_URI: z.string().min(1),
+  MONGODB_DB: z.string().min(1).default('nexus'),
 
   // JWT — always required
   ACCESS_TOKEN_SECRET: z.string().min(32),
