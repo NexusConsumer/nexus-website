@@ -21,6 +21,8 @@ export const TENANT_MEMBER_STATUSES = ['active', 'suspended', 'deactivated', 'pe
 export const SERVICE_KEYS = ['benefits_catalog', 'provider_service', 'digital_wallet', 'business_payments'] as const;
 export const SERVICE_ACTIVATION_STATUSES = ['inactive', 'pending_review', 'active', 'suspended'] as const;
 export const MEMBER_GROUP_TYPES = ['static', 'dynamic'] as const;
+export const CATALOG_ADOPTION_MODES = ['auto_silent', 'auto_notify', 'manual'] as const;
+export const DEFAULT_PRICING_RULES = ['nexus_price', 'inherit_selection', 'manual_required'] as const;
 
 export type TenantDomainStatus = typeof TENANT_STATUSES[number];
 export type TenantOnboardingState = typeof TENANT_ONBOARDING_STATES[number];
@@ -28,6 +30,8 @@ export type TenantMemberStatus = typeof TENANT_MEMBER_STATUSES[number];
 export type TenantServiceKey = typeof SERVICE_KEYS[number];
 export type TenantServiceActivationStatus = typeof SERVICE_ACTIVATION_STATUSES[number];
 export type MemberGroupType = typeof MEMBER_GROUP_TYPES[number];
+export type CatalogAdoptionMode = typeof CATALOG_ADOPTION_MODES[number];
+export type DefaultPricingRule = typeof DEFAULT_PRICING_RULES[number];
 
 export const domainTenantSchema = z.object({
   tenantId: z.string().min(1),
@@ -100,6 +104,18 @@ export const memberGroupAssignmentSchema = z.object({
   createdAt: z.date(),
 });
 
+export const tenantCatalogPolicySchema = z.object({
+  tenantCatalogPolicyId: z.string().min(1),
+  tenantId: z.string().min(1),
+  catalogAdoptionMode: z.enum(CATALOG_ADOPTION_MODES),
+  defaultPricingRule: z.enum(DEFAULT_PRICING_RULES),
+  autoExclusionMaxPrice: z.number().nonnegative().optional(),
+  pendingReviewTimeoutDays: z.number().int().min(7).default(30),
+  notificationRoles: z.array(z.string().min(1)).default([]),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
 export type DomainTenantDocument = z.infer<typeof domainTenantSchema> & { _id?: ObjectId };
 export type TenantOnboardingStateDocument = z.infer<typeof tenantOnboardingStateSchema> & { _id?: ObjectId };
 export type TenantProfileDocument = z.infer<typeof tenantProfileSchema> & { _id?: ObjectId };
@@ -107,6 +123,7 @@ export type TenantServiceActivationDocument = z.infer<typeof tenantServiceActiva
 export type TenantMemberDomainDocument = z.infer<typeof tenantMemberDomainSchema> & { _id?: ObjectId };
 export type MemberGroupDocument = z.infer<typeof memberGroupSchema> & { _id?: ObjectId };
 export type MemberGroupAssignmentDocument = z.infer<typeof memberGroupAssignmentSchema> & { _id?: ObjectId };
+export type TenantCatalogPolicyDocument = z.infer<typeof tenantCatalogPolicySchema> & { _id?: ObjectId };
 
 export interface TenantDomainCollections {
   domainTenants: Collection<DomainTenantDocument>;
@@ -116,6 +133,7 @@ export interface TenantDomainCollections {
   tenantMembers: Collection<TenantMemberDomainDocument>;
   memberGroups: Collection<MemberGroupDocument>;
   memberGroupAssignments: Collection<MemberGroupAssignmentDocument>;
+  tenantCatalogPolicies: Collection<TenantCatalogPolicyDocument>;
 }
 
 /**
@@ -132,5 +150,6 @@ export function getTenantDomainCollections(db: Db): TenantDomainCollections {
     tenantMembers: db.collection<TenantMemberDomainDocument>(DOMAIN_COLLECTIONS.tenantMembers),
     memberGroups: db.collection<MemberGroupDocument>(DOMAIN_COLLECTIONS.memberGroups),
     memberGroupAssignments: db.collection<MemberGroupAssignmentDocument>(DOMAIN_COLLECTIONS.memberGroupAssignments),
+    tenantCatalogPolicies: db.collection<TenantCatalogPolicyDocument>(DOMAIN_COLLECTIONS.tenantCatalogPolicies),
   };
 }
