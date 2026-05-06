@@ -15,6 +15,7 @@ import {
   getOnboardingCollections,
 } from '../models/onboarding.models';
 import { BusinessSetupInput, SkipWorkspaceInput, WorkspaceSetupInput } from '../schemas/onboarding.schemas';
+import { getDomainAuthorizationContext, getPrimaryTenantRole } from './domain-authorization.service';
 import { syncDomainIdentityForLoginUser } from './domain-identity.service';
 import { syncDomainTenantMembership } from './domain-tenant-sync.service';
 import { syncOnboardingMemberEmail } from './onboarding-identity.service';
@@ -88,6 +89,19 @@ function getDashboardAuthorization(email: string, context: UserContext): Dashboa
     platformRole,
     canSeeDevMode,
     canUseDevPlayground: canSeeDevMode && platformRole === 'nexusAdmin',
+  };
+}
+
+/**
+ * Replaces legacy context role with the primary domain role when available.
+ * Input: current dashboard context and additive domain roles.
+ * Output: context with same response shape and source-of-truth tenant role.
+ */
+function applyDomainRoleToContext(context: UserContext, domainRole: string | null): UserContext {
+  if (!context.isTenant || !domainRole) return context;
+  return {
+    ...context,
+    role: domainRole,
   };
 }
 
@@ -187,10 +201,13 @@ export async function getMe(userId: string): Promise<MeResponse> {
     syncOnboardingMemberEmail(user.id, user.email),
     syncLegacyTenantContextForDomain(user.id, domainIdentity.nexusIdentityId, status.context),
   ]);
+  const domainAuthorization = await getDomainAuthorizationContext(domainIdentity.nexusIdentityId, status.context.tenantId);
+  const context = applyDomainRoleToContext(status.context, getPrimaryTenantRole(domainAuthorization.roles));
+
   return {
     user: { id: user.id, email: user.email, name: user.fullName },
-    context: status.context,
-    authorization: getDashboardAuthorization(user.email, status.context),
+    context,
+    authorization: getDashboardAuthorization(user.email, context),
     onboarding: status.onboarding,
   };
 }

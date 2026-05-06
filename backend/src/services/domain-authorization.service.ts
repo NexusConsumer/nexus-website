@@ -18,6 +18,16 @@ export interface DomainAuthorizationContext {
   permissions: DomainPermission[];
 }
 
+const TENANT_ROLE_PRIORITY: readonly TenantUserRoleName[] = [
+  'admin',
+  'finance',
+  'operator',
+  'supply_manager',
+  'developer',
+  'analyst',
+  'member',
+] as const;
+
 /**
  * Deduplicates string values while keeping stable insertion order.
  * Input: string array.
@@ -89,4 +99,13 @@ export function hasDomainPermission(
   permission: DomainPermission,
 ): boolean {
   return context.permissions.includes(permission);
+}
+
+/**
+ * Chooses the primary tenant role to keep legacy dashboard responses stable.
+ * Input: additive domain roles for one tenant.
+ * Output: highest-priority tenant role or null when no tenant role exists.
+ */
+export function getPrimaryTenantRole(roles: TenantUserRoleName[]): TenantUserRoleName | null {
+  return TENANT_ROLE_PRIORITY.find((role) => roles.includes(role)) ?? null;
 }
