@@ -5,7 +5,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate';
 import { apiLimiter } from '../middleware/rateLimiter';
+import { inviteTenantMemberSchema } from '../schemas/domain-member.schemas';
 import { benefitsCatalogActivationSchema } from '../schemas/domain-service-activation.schemas';
+import { inviteTenantMemberByEmail } from '../services/domain-member.service';
 import { activateBenefitsCatalogForUser } from '../services/domain-service-activation.service';
 
 const router = Router();
@@ -18,6 +20,21 @@ router.post(
     try {
       const input = benefitsCatalogActivationSchema.parse(req.body);
       const result = await activateBenefitsCatalogForUser(req.user!.sub, input);
+      res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.post(
+  '/members/invitations',
+  authenticate,
+  apiLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const input = inviteTenantMemberSchema.parse(req.body);
+      const result = await inviteTenantMemberByEmail(req.user!.sub, input);
       res.status(201).json(result);
     } catch (error) {
       next(error);

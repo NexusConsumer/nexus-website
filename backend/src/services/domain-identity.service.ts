@@ -71,6 +71,7 @@ export async function syncDomainIdentityForLoginUser(user: LoginUserIdentityInpu
       $set: {
         displayName: user.fullName,
         authProvider: mapAuthProvider(user.provider),
+        status: 'active',
         prismaUserId: user.id,
         updatedAt: now,
       },
@@ -103,6 +104,77 @@ export async function syncDomainIdentityForLoginUser(user: LoginUserIdentityInpu
       $set: {
         nexusIdentityId: identity.nexusIdentityId,
         identifier: user.email,
+        updatedAt: now,
+      },
+    },
+    { upsert: true },
+  );
+
+  return {
+    nexusIdentityId: identity.nexusIdentityId,
+    normalizedEmail: identity.normalizedEmail,
+  };
+}
+
+/**
+ * Creates or links a domain identity for a tenant member invitation.
+ * Input: invited email and optional display name from tenant admin.
+ * Output: domain identity id and normalized email for member onboarding.
+ */
+export async function syncDomainIdentityForMemberInvite(input: {
+  email: string;
+  displayName?: string;
+}): Promise<SyncedDomainIdentity> {
+  const db = await getMongoDb();
+  const collections = getIdentityDomainCollections(db);
+  const normalizedEmail = normalizeEmail(input.email);
+  const now = new Date();
+
+  await collections.nexusIdentities.updateOne(
+    { normalizedEmail },
+    {
+      $setOnInsert: {
+        nexusIdentityId: `identity_${randomUUID()}`,
+        normalizedEmail,
+        displayName: input.displayName,
+        authProvider: 'email_passwordless',
+        status: 'invited',
+        locale: 'he',
+        createdAt: now,
+      },
+      $set: {
+        ...(input.displayName ? { displayName: input.displayName } : {}),
+        updatedAt: now,
+      },
+    },
+    { upsert: true },
+  );
+
+  const identity = await collections.nexusIdentities.findOne(
+    { normalizedEmail },
+    { projection: { nexusIdentityId: 1, normalizedEmail: 1 } },
+  );
+  if (!identity) {
+    throw new Error('Domain invite identity sync failed after upsert');
+  }
+
+  await collections.contactProfiles.updateOne(
+    { channel: 'email', normalizedIdentifier: normalizedEmail },
+    {
+      $setOnInsert: {
+        contactProfileId: `contact_${randomUUID()}`,
+        nexusIdentityId: identity.nexusIdentityId,
+        channel: 'email',
+        identifier: input.email,
+        normalizedIdentifier: normalizedEmail,
+        verified: false,
+        status: 'active',
+        source: 'member_admin_invite',
+        createdAt: now,
+      },
+      $set: {
+        nexusIdentityId: identity.nexusIdentityId,
+        identifier: input.email,
         updatedAt: now,
       },
     },

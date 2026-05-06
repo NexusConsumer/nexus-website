@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { DOMAIN_COLLECTIONS } from './collections';
 
 export const AUTH_PROVIDERS = ['email_passwordless', 'google', 'apple', 'email_password'] as const;
-export const IDENTITY_STATUSES = ['active', 'suspended', 'deactivated'] as const;
+export const IDENTITY_STATUSES = ['invited', 'active', 'suspended', 'deactivated'] as const;
 export const CONTACT_CHANNELS = ['email', 'sms', 'whatsapp', 'push', 'meta'] as const;
 export const CONTACT_STATUSES = ['active', 'disabled', 'bounced', 'unsubscribed'] as const;
 export const TENANT_ROLE_NAMES = [
