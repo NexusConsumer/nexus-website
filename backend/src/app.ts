@@ -33,6 +33,8 @@ import orgsRoutes from './routes/orgs.routes';
 import invitesRoutes from './routes/invites.routes';
 import pushRoutes from './routes/push.routes';
 import onboardingRoutes from './routes/onboarding.routes';
+import domainTenantRoutes from './routes/domain-tenant.routes';
+import v1Routes from './routes/v1.routes';
 import { prisma } from './config/database';
 const app = express();
 app.set('trust proxy', 1);
@@ -68,8 +70,12 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
-// ─── Health check ─────────────────────────────────────────
-app.get('/api/health', async (_req, res) => {
+/**
+ * Sends backend health status for unversioned and v1 health checks.
+ * Input: Express request and response.
+ * Output: JSON health payload used by deploy checks and operators.
+ */
+async function sendHealthStatus(_req: express.Request, res: express.Response): Promise<void> {
   // Quick agent connectivity check
   let agentOk = false;
   if (env.AGENT_API_URL) {
@@ -90,11 +96,16 @@ app.get('/api/health', async (_req, res) => {
       reachable: agentOk,
     },
   });
-});
+}
+
+// ─── Health check ─────────────────────────────────────────
+app.get(['/api/health', '/api/v1/health'], sendHealthStatus);
 
 // ─── API Routes ───────────────────────────────────────────
+app.use('/api/v1', v1Routes);
 app.use('/api/auth', authRoutes);
 app.use('/api', onboardingRoutes);
+app.use('/api/tenant', domainTenantRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/dashboard', dashboardRoutes);

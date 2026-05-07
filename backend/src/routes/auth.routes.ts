@@ -32,17 +32,27 @@ const authCodeSchema = z.object({
 
 /**
  * Builds the dashboard callback URL that exchanges a one-time auth code.
- * Input: backend-issued dashboard code.
+ * Input: backend-issued dashboard code and requested dashboard path.
  * Output: absolute dashboard callback URL, or undefined when no dashboard URL is configured.
  */
-function buildDashboardCallbackUrl(code: string, language: 'he' | 'en' = 'en'): string | undefined {
+function buildDashboardCallbackUrl(code: string, language: 'he' | 'en' = 'en', redirectPath = '/'): string | undefined {
   if (!env.DASHBOARD_URL) return undefined;
 
   const url = new URL('/auth/callback', env.DASHBOARD_URL);
   url.searchParams.set('code', code);
-  url.searchParams.set('redirect', '/');
+  url.searchParams.set('redirect', getSafeDashboardRedirect(redirectPath));
   url.searchParams.set('lang', language);
   return url.toString();
+}
+
+/**
+ * Accepts only local dashboard paths for auth redirects.
+ * Input: raw redirect value from the browser.
+ * Output: safe local dashboard path.
+ */
+function getSafeDashboardRedirect(redirectPath: string | undefined): string {
+  if (!redirectPath || !redirectPath.startsWith('/') || redirectPath.startsWith('//')) return '/';
+  return redirectPath;
 }
 
 const registerSchema = z.object({
@@ -52,6 +62,7 @@ const registerSchema = z.object({
     password: z.string().min(8).max(128),
     country: z.string().length(2).optional(),
     emailUpdates: z.boolean().optional(),
+    dashboardRedirect: z.string().min(1).max(500).optional(),
   }),
 });
 
@@ -61,10 +72,7 @@ router.post(
   validate(registerSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await AuthService.register(req.body, {
-        userAgent: req.headers['user-agent'],
-        ipAddress: req.ip,
-      });
+      const result = await AuthService.register(req.body);
       // Send verification email instead of welcome email — account is not active until verified
       EmailService.sendVerificationEmail(result.email, result.fullName, result.rawVerificationToken).catch(console.error);
       res.status(201).json({ requiresVerification: true, email: result.email });
@@ -110,6 +118,7 @@ const googleSchema = z.object({
       accessToken: z.string().min(1).optional(),
       redirectUri: z.string().url().optional(),
       language: z.enum(['he', 'en']).optional(),
+      dashboardRedirect: z.string().min(1).max(500).optional(),
     })
     .refine((d) => d.idToken || d.code || d.accessToken, {
       message: 'idToken, code, or accessToken is required',
@@ -132,7 +141,11 @@ router.post(
         result = await AuthService.googleAuth(req.body.idToken, meta);
       }
       const dashboardCode = AuthService.createDashboardAuthCode(result.userId);
-      const dashboardUrl = buildDashboardCallbackUrl(dashboardCode, req.body.language ?? 'en');
+      const dashboardUrl = buildDashboardCallbackUrl(
+        dashboardCode,
+        req.body.language ?? 'en',
+        req.body.dashboardRedirect,
+      );
       res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(7 * 24 * 60 * 60 * 1000));
       res.json({ accessToken: result.accessToken, dashboardCode, dashboardUrl, isNew: result.isNew ?? false });
     } catch (err) {
@@ -156,7 +169,7 @@ router.post(
         ipAddress: req.ip,
       });
       res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(7 * 24 * 60 * 60 * 1000));
-      res.json({ accessToken: result.accessToken });
+      res.json({ accessToken: result.accessToken, dashboardRedirect: result.dashboardRedirect });
     } catch (err) {
       next(err);
     }

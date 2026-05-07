@@ -3,7 +3,7 @@
  * Email links use the app URL, while email images use a public asset URL so
  * inbox providers can load images even when the app runs locally.
  */
-import nodemailer from 'nodemailer';
+import type nodemailer from 'nodemailer';
 import { env } from '../config/env';
 
 const FROM_EMAIL = env.EMAIL_FROM ?? 'hello@nexus-payment.com';
@@ -13,8 +13,6 @@ const EMAIL_ASSET_BASE_URL = env.EMAIL_ASSET_BASE_URL ?? FRONTEND;
 const AUTH_EMAIL_BANNER_PATH = '/nexus-logo-black.png';
 
 // ─── SMTP transport (Nodemailer) — preferred for threading ──
-
-let _smtpTransport: nodemailer.Transporter | null = null;
 
 /**
  * Return the SMTP transport when SMTP is enabled.
@@ -105,7 +103,7 @@ function buildAuthEmailBannerHtml(): string {
 
 // ─── Unified send interface ──────────────────────────────────
 
-interface SendMailOptions {
+export interface SendMailOptions {
   to: string;
   toName?: string;
   fromName?: string;
@@ -124,7 +122,7 @@ interface SendMailOptions {
  * Inputs: normalized email metadata, HTML body, optional text body, and headers.
  * Output: provider message ID when available, otherwise null.
  */
-async function sendMail(options: SendMailOptions): Promise<string | null> {
+export async function sendMail(options: SendMailOptions): Promise<string | null> {
   const label = options._label ?? 'GENERIC';
   const smtp = getSmtpTransport();
 
@@ -164,8 +162,9 @@ async function sendMail(options: SendMailOptions): Promise<string | null> {
 
       console.log(`✅  [${label}] SMTP sent — messageId: ${info.messageId ?? 'none'}`);
       return info.messageId ?? null;
-    } catch (err: any) {
-      console.error(`❌  [${label}] SMTP FAILED to ${options.to}:`, err?.message ?? err);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`❌  [${label}] SMTP FAILED to ${options.to}:`, message);
       console.log(`🔄  [${label}] Falling back to SendPulse REST API...`);
       // Fall through to SendPulse REST API below
     }
@@ -206,8 +205,9 @@ async function sendMail(options: SendMailOptions): Promise<string | null> {
     }
     console.log(`✅  [${label}] SendPulse sent to ${options.to} — id: ${data.id ?? 'none'}`);
     return data.id ?? null;
-  } catch (err: any) {
-    console.error(`❌  [${label}] SendPulse FAILED to ${options.to}:`, err?.message ?? err);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`❌  [${label}] SendPulse FAILED to ${options.to}:`, message);
     throw err;
   }
 }

@@ -223,15 +223,16 @@ model PasswordReset {
 }
 
 model PendingRegistration {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  fullName     String
-  country      String   @default("IL")
-  emailUpdates Boolean  @default(true)
-  tokenHash    String   @unique
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
+  id                String   @id @default(cuid())
+  email             String   @unique
+  passwordHash      String
+  fullName          String
+  country           String   @default("IL")
+  emailUpdates      Boolean  @default(true)
+  tokenHash         String   @unique
+  dashboardRedirect String?
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
 
   @@index([tokenHash])
   @@index([email])

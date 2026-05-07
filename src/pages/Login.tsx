@@ -2,15 +2,29 @@
  * Renders the website sign-in page and redirects regular users into the
  * separate dashboard app after the backend creates a one-time SSO code.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAnalytics } from '../hooks/useAnalytics';
 import AnimatedGradient from '../components/AnimatedGradient';
 import GoogleSignIn from '../components/GoogleSignIn';
 import NexusLogo from '../components/NexusLogo';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+
+interface LoginPageError {
+  status?: number;
+  error?: string;
+}
+
+/**
+ * Narrows unknown API errors for login form rendering.
+ * Input: unknown value caught from API helpers.
+ * Output: structured error fields when available.
+ */
+function toLoginPageError(error: unknown): LoginPageError {
+  return typeof error === 'object' && error !== null ? error as LoginPageError : {};
+}
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -27,9 +41,8 @@ export default function Login() {
   });
   const hasRedirectedExistingSession = useRef(false);
 
-  const { t, language, direction } = useLanguage();
+  const { t, language } = useLanguage();
   const { user: authenticatedUser, isLoading: isAuthLoading, login } = useAuth();
-  const navigate = useNavigate();
   const { search } = useLocation();
   const { identify } = useAnalytics();
   const isHe = language === 'he';
@@ -37,8 +50,8 @@ export default function Login() {
   const signupPath = isHe ? '/he/signup' : '/signup';
   const workspacePath = isHe ? '/he/workspace' : '/workspace';
 
-  // Support ?next= redirect (e.g. from /join/:token)
-  const nextPath = new URLSearchParams(search).get('next');
+  const searchParams = new URLSearchParams(search);
+  const dashboardRedirect = searchParams.get('dashboardRedirect');
 
   const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? '';
 
@@ -47,36 +60,42 @@ export default function Login() {
    * Input: SSO code from the website backend and the final dashboard path.
    * Output: absolute dashboard callback URL safe for a full-page redirect.
    */
-  const buildDashboardCallbackUrl = (code: string, redirectPath: string) => {
+  const buildDashboardCallbackUrl = useCallback((code: string, redirectPath: string) => {
     const url = new URL('/auth/callback', DASHBOARD_URL);
     url.searchParams.set('code', code);
     url.searchParams.set('redirect', redirectPath);
     url.searchParams.set('lang', language);
     return url.toString();
-  };
+  }, [DASHBOARD_URL, language]);
 
   /**
    * Chooses the dashboard path that should open after auth handoff.
    * Input: authenticated user profile returned by the website backend.
    * Output: organization dashboard path, or "/" when no single organization exists.
    */
-  const getDashboardRedirectPath = (user: { orgMemberships?: { org: { slug: string } }[] }) => {
+  const getDashboardRedirectPath = useCallback((user: { orgMemberships?: { org: { slug: string } }[] }) => {
+    if (dashboardRedirect && dashboardRedirect.startsWith('/') && !dashboardRedirect.startsWith('//')) {
+      return dashboardRedirect;
+    }
     const orgs = user.orgMemberships ?? [];
     return orgs.length === 1 ? `/organizations/${orgs[0].org.slug}` : '/';
-  };
+  }, [dashboardRedirect]);
+  const googleDashboardRedirect = dashboardRedirect && dashboardRedirect.startsWith('/') && !dashboardRedirect.startsWith('//')
+    ? dashboardRedirect
+    : workspacePath;
 
   /**
    * Sends an authenticated website user to the dashboard with a fresh SSO code.
    * Input: authenticated user profile and the remembered-device choice.
    * Output: navigation occurs in the current browser tab.
    */
-  const redirectToDashboard = async (
+  const redirectToDashboard = useCallback(async (
     user: { orgMemberships?: { org: { slug: string } }[] },
     shouldRememberDevice?: boolean,
   ) => {
     const { code } = await api.post<{ code: string }>('/api/auth/create-code', { rememberMe: shouldRememberDevice });
     window.location.replace(buildDashboardCallbackUrl(code, getDashboardRedirectPath(user)));
-  };
+  }, [buildDashboardCallbackUrl, getDashboardRedirectPath]);
 
   /**
    * Sends a regular authenticated user to the dashboard with a fresh SSO code.
@@ -84,7 +103,6 @@ export default function Login() {
    * Output: navigation occurs in the current browser tab.
    */
   const navigateAfterLogin = async (user: { role: string; onboardingDone: boolean; orgMemberships?: { org: { slug: string } }[] }) => {
-    if (nextPath) { navigate(nextPath); return; }
     await redirectToDashboard(user, rememberMe);
   };
 
@@ -101,7 +119,7 @@ export default function Login() {
     };
 
     void redirectExistingSession();
-  }, [authenticatedUser, isAuthLoading]);
+  }, [authenticatedUser, isAuthLoading, redirectToDashboard]);
 
   const isFormValid = email.trim() !== '' && password.trim() !== '';
 
@@ -136,7 +154,8 @@ export default function Login() {
       const user = await login(email, password, rememberMe);
       identify(user.id, 'login');
       await navigateAfterLogin(user);
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = toLoginPageError(error);
       setIsLoading(false);
       // 403 = registered but email not verified yet
       if (err?.status === 403) {
@@ -312,14 +331,17 @@ export default function Login() {
 
               {/* Social Sign In */}
               <div className="space-y-3">
-                <GoogleSignIn redirectTo={workspacePath} />
+                <GoogleSignIn redirectTo={googleDashboardRedirect} />
               </div>
 
               {/* New User Link */}
               <div className="text-center mt-4 pt-4 -mx-6 -mb-6 px-6 pb-4 bg-slate-50 rounded-b-xl border-t border-gray-100">
                 <p className="text-sm text-nx-gray">
                   {t.auth.newToNexus}{' '}
-                  <Link to={signupPath} className="text-nx-primary hover:underline font-semibold">
+                  <Link
+                    to={`${signupPath}${dashboardRedirect ? `?dashboardRedirect=${encodeURIComponent(dashboardRedirect)}&email=${encodeURIComponent(email)}` : ''}`}
+                    className="text-nx-primary hover:underline font-semibold"
+                  >
                     {t.auth.createAccountLink}
                   </Link>
                 </p>

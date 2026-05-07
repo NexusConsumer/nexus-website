@@ -18,7 +18,9 @@ import { initSocket } from './socket';
 import { env } from './config/env';
 import { prisma } from './config/database';
 import { closeMongoConnection, getMongoDb, verifyMongoConnection } from './config/mongo';
+import { ensureDomainIndexes } from './models/domain';
 import { ensureOnboardingIndexes } from './models/onboarding.models';
+import { ensureDefaultRolePermissions } from './services/domain-permissions.service';
 import { scheduleDailyDigest } from './jobs/dailyDigest';
 import { embedText } from './services/ai.service';
 import { scheduleBiRefresh } from './jobs/biRefresh';
@@ -185,7 +187,10 @@ async function bootstrap() {
   // 1b. Test MongoDB connection and prepare product-domain indexes.
   try {
     await verifyMongoConnection();
-    await ensureOnboardingIndexes(await getMongoDb());
+    const mongoDb = await getMongoDb();
+    await ensureOnboardingIndexes(mongoDb);
+    await ensureDomainIndexes(mongoDb);
+    await ensureDefaultRolePermissions();
     console.log('✅ MongoDB connected');
   } catch (err) {
     console.error('❌ MongoDB connection failed:', err);

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Owns the website authentication state and bridges successful user login
  * into the dashboard app with a short-lived backend-issued SSO code.
@@ -32,6 +33,7 @@ interface RegisterData {
   password: string;
   country?: string;
   emailUpdates?: boolean;
+  dashboardRedirect?: string;
 }
 
 interface AuthContextType {
@@ -68,6 +70,17 @@ function getCurrentWebsiteLanguage(): 'he' | 'en' {
 }
 
 /**
+ * Returns a safe dashboard path saved before a full-page Google redirect.
+ * Input: value from sessionStorage.
+ * Output: local dashboard path, or "/" when the saved value is unsafe.
+ */
+function getSavedGoogleDashboardRedirect(): string {
+  const saved = sessionStorage.getItem('google_oauth_redirect');
+  if (!saved || !saved.startsWith('/') || saved.startsWith('//')) return '/';
+  return saved;
+}
+
+/**
  * Exchanges a Google OAuth code exactly once in dev StrictMode.
  * Input: Google code from the browser URL.
  * Output: backend auth response containing website tokens and dashboard handoff data.
@@ -80,6 +93,7 @@ function exchangeGoogleCodeOnce(code: string): Promise<GoogleAuthResponse> {
     code,
     redirectUri: window.location.origin,
     language: getCurrentWebsiteLanguage(),
+    dashboardRedirect: getSavedGoogleDashboardRedirect(),
   });
 
   googleCodeRequests.set(code, request);
@@ -116,7 +130,8 @@ function buildDashboardCallbackUrl(code: string, redirectPath: string): string {
  */
 async function redirectDashboardUser(profile: AuthUser, existingCode?: string): Promise<void> {
   const orgs = profile.orgMemberships ?? [];
-  const redirectPath = orgs.length === 1 ? `/organizations/${orgs[0].org.slug}` : '/';
+  const savedRedirect = getSavedGoogleDashboardRedirect();
+  const redirectPath = savedRedirect !== '/' ? savedRedirect : orgs.length === 1 ? `/organizations/${orgs[0].org.slug}` : '/';
   const code = existingCode ?? (await api.post<{ code: string }>('/api/auth/create-code')).code;
   window.location.replace(buildDashboardCallbackUrl(code, redirectPath));
 }
@@ -152,10 +167,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (code) {
       // Clean the URL immediately so a refresh doesn't re-submit the code
       window.history.replaceState({}, document.title, window.location.pathname);
-      setIsLoading(true);
       logAuthHandoff('Google callback detected; exchanging code');
       exchangeGoogleCodeOnce(code)
         .then(async (data) => {
+          const dashboardRedirect = getSavedGoogleDashboardRedirect();
           sessionStorage.removeItem('google_oauth_redirect');
           logAuthHandoff('Google exchange succeeded', {
             hasDashboardUrl: Boolean(data.dashboardUrl),
@@ -169,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           if (data.dashboardCode) {
-            const fallbackDashboardUrl = buildDashboardCallbackUrl(data.dashboardCode, '/');
+            const fallbackDashboardUrl = buildDashboardCallbackUrl(data.dashboardCode, dashboardRedirect);
             logAuthHandoff('Redirecting to dashboard callback from code fallback', {
               dashboardUrl: fallbackDashboardUrl,
             });
