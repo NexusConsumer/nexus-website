@@ -23,6 +23,7 @@ export const SERVICE_ACTIVATION_STATUSES = ['inactive', 'pending_review', 'activ
 export const MEMBER_GROUP_TYPES = ['static', 'dynamic'] as const;
 export const CATALOG_ADOPTION_MODES = ['auto_silent', 'auto_notify', 'manual'] as const;
 export const DEFAULT_PRICING_RULES = ['nexus_price', 'inherit_selection', 'manual_required'] as const;
+export const TENANT_MEMBER_INVITATION_STATUSES = ['pending', 'accepted', 'expired', 'revoked'] as const;
 
 export type TenantDomainStatus = typeof TENANT_STATUSES[number];
 export type TenantOnboardingState = typeof TENANT_ONBOARDING_STATES[number];
@@ -32,6 +33,7 @@ export type TenantServiceActivationStatus = typeof SERVICE_ACTIVATION_STATUSES[n
 export type MemberGroupType = typeof MEMBER_GROUP_TYPES[number];
 export type CatalogAdoptionMode = typeof CATALOG_ADOPTION_MODES[number];
 export type DefaultPricingRule = typeof DEFAULT_PRICING_RULES[number];
+export type TenantMemberInvitationStatus = typeof TENANT_MEMBER_INVITATION_STATUSES[number];
 
 export const domainTenantSchema = z.object({
   tenantId: z.string().min(1),
@@ -104,6 +106,27 @@ export const memberGroupAssignmentSchema = z.object({
   createdAt: z.date(),
 });
 
+export const tenantMemberInvitationSchema = z.object({
+  tenantMemberInvitationId: z.string().min(1),
+  tenantId: z.string().min(1),
+  tenantMemberId: z.string().min(1),
+  nexusIdentityId: z.string().min(1),
+  invitedEmail: z.string().email(),
+  normalizedEmail: z.string().email(),
+  role: z.string().min(1).max(100),
+  groupIds: z.array(z.string().min(1)).default([]),
+  tokenHash: z.string().min(64).max(64),
+  status: z.enum(TENANT_MEMBER_INVITATION_STATUSES),
+  invitedByIdentityId: z.string().min(1),
+  acceptedByIdentityId: z.string().min(1).optional(),
+  emailMessageId: z.string().min(1).optional(),
+  lastEmailSentAt: z.date().optional(),
+  expiresAt: z.date(),
+  acceptedAt: z.date().optional(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
 export const tenantCatalogPolicySchema = z.object({
   tenantCatalogPolicyId: z.string().min(1),
   tenantId: z.string().min(1),
@@ -123,6 +146,7 @@ export type TenantServiceActivationDocument = z.infer<typeof tenantServiceActiva
 export type TenantMemberDomainDocument = z.infer<typeof tenantMemberDomainSchema> & { _id?: ObjectId };
 export type MemberGroupDocument = z.infer<typeof memberGroupSchema> & { _id?: ObjectId };
 export type MemberGroupAssignmentDocument = z.infer<typeof memberGroupAssignmentSchema> & { _id?: ObjectId };
+export type TenantMemberInvitationDocument = z.infer<typeof tenantMemberInvitationSchema> & { _id?: ObjectId };
 export type TenantCatalogPolicyDocument = z.infer<typeof tenantCatalogPolicySchema> & { _id?: ObjectId };
 
 export interface TenantDomainCollections {
@@ -131,6 +155,7 @@ export interface TenantDomainCollections {
   tenantProfiles: Collection<TenantProfileDocument>;
   tenantServiceActivations: Collection<TenantServiceActivationDocument>;
   tenantMembers: Collection<TenantMemberDomainDocument>;
+  tenantMemberInvitations: Collection<TenantMemberInvitationDocument>;
   memberGroups: Collection<MemberGroupDocument>;
   memberGroupAssignments: Collection<MemberGroupAssignmentDocument>;
   tenantCatalogPolicies: Collection<TenantCatalogPolicyDocument>;
@@ -148,6 +173,9 @@ export function getTenantDomainCollections(db: Db): TenantDomainCollections {
     tenantProfiles: db.collection<TenantProfileDocument>(DOMAIN_COLLECTIONS.tenantProfiles),
     tenantServiceActivations: db.collection<TenantServiceActivationDocument>(DOMAIN_COLLECTIONS.tenantServiceActivations),
     tenantMembers: db.collection<TenantMemberDomainDocument>(DOMAIN_COLLECTIONS.tenantMembers),
+    tenantMemberInvitations: db.collection<TenantMemberInvitationDocument>(
+      DOMAIN_COLLECTIONS.tenantMemberInvitations,
+    ),
     memberGroups: db.collection<MemberGroupDocument>(DOMAIN_COLLECTIONS.memberGroups),
     memberGroupAssignments: db.collection<MemberGroupAssignmentDocument>(DOMAIN_COLLECTIONS.memberGroupAssignments),
     tenantCatalogPolicies: db.collection<TenantCatalogPolicyDocument>(DOMAIN_COLLECTIONS.tenantCatalogPolicies),

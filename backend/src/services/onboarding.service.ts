@@ -14,6 +14,7 @@ import {
   TenantMemberDocument,
   getOnboardingCollections,
 } from '../models/onboarding.models';
+import { getIdentityDomainCollections, getTenantDomainCollections } from '../models/domain';
 import { BusinessSetupInput, SkipWorkspaceInput, WorkspaceSetupInput } from '../schemas/onboarding.schemas';
 import { getDomainAuthorizationContext, getPrimaryTenantRole, hasDomainPermission } from './domain-authorization.service';
 import { syncDomainIdentityForLoginUser } from './domain-identity.service';
@@ -26,6 +27,7 @@ export interface UserContext {
   isMember: boolean;
   mode: 'tenant' | 'regular_user' | 'workspace_setup_deferred' | 'needs_workspace_setup';
   tenantId: string | null;
+  tenantName: string | null;
   memberId: string | null;
   role: string | null;
 }
@@ -40,6 +42,7 @@ export interface DashboardAuthorization {
   platformRole: PlatformRole | null;
   canSeeDevMode: boolean;
   canUseDevPlayground: boolean;
+  canManageMembers: boolean;
 }
 
 export interface MeResponse {
@@ -81,7 +84,11 @@ async function getPrismaUser(userId: string): Promise<{ id: string; email: strin
  * Input: current Prisma email and Mongo-derived user context.
  * Output: flags the dashboard can use for UX gating without exposing raw admin config.
  */
-function getDashboardAuthorization(email: string, context: UserContext): DashboardAuthorization {
+function getDashboardAuthorization(
+  email: string,
+  context: UserContext,
+  permissions: DomainPermission[],
+): DashboardAuthorization {
   const platformRole = getPlatformRoleForEmail(email);
   const canSeeDevMode = context.role === 'admin';
 
@@ -90,6 +97,7 @@ function getDashboardAuthorization(email: string, context: UserContext): Dashboa
     platformRole,
     canSeeDevMode,
     canUseDevPlayground: canSeeDevMode && platformRole === 'nexusAdmin',
+    canManageMembers: permissions.includes('member.manage'),
   };
 }
 
@@ -107,6 +115,50 @@ function applyDomainRoleToContext(context: UserContext, domainRole: string | nul
 }
 
 /**
+ * Finds a tenant context from the source-of-truth domain member records.
+ * Input: trusted Prisma login user id.
+ * Output: tenant context when an invited user has no legacy onboarding member.
+ */
+async function getDomainTenantContextForUser(userId: string): Promise<UserContext | null> {
+  const user = await getPrismaUser(userId);
+  const identity = await syncDomainIdentityForLoginUser({
+    id: user.id,
+    email: user.email,
+    fullName: user.fullName,
+    provider: user.provider,
+  });
+  const db = await getMongoDb();
+  const tenantCollections = getTenantDomainCollections(db);
+  const identityCollections = getIdentityDomainCollections(db);
+  const tenantMember = await tenantCollections.tenantMembers.findOne(
+    { nexusIdentityId: identity.nexusIdentityId, status: 'active' },
+    { sort: { createdAt: 1 } },
+  );
+  if (!tenantMember) return null;
+
+  const [roles, tenant] = await Promise.all([
+    identityCollections.tenantUserRoles
+      .find({ nexusIdentityId: identity.nexusIdentityId, tenantId: tenantMember.tenantId })
+      .toArray(),
+    tenantCollections.domainTenants.findOne(
+      { tenantId: tenantMember.tenantId },
+      { projection: { organizationName: 1 } },
+    ),
+  ]);
+  const role = getPrimaryTenantRole(roles.map((record) => record.role));
+
+  return {
+    isTenant: true,
+    isMember: false,
+    mode: 'tenant',
+    tenantId: tenantMember.tenantId,
+    tenantName: tenant?.organizationName ?? null,
+    memberId: null,
+    role,
+  };
+}
+
+/**
  * Finds the user's active tenant or member context from MongoDB.
  * Input: Prisma user id.
  * Output: backend-derived tenant/member context.
@@ -117,15 +169,23 @@ export async function getUserContext(userId: string): Promise<UserContext> {
 
   const tenantMembership = await collections.tenantMembers.findOne({ userId, status: 'active' });
   if (tenantMembership) {
+    const tenant = await collections.tenants.findOne(
+      { _id: tenantMembership.tenantId },
+      { projection: { organizationName: 1 } },
+    );
     return {
       isTenant: true,
       isMember: false,
       mode: 'tenant',
       tenantId: tenantMembership.tenantId.toHexString(),
+      tenantName: tenant?.organizationName ?? null,
       memberId: null,
       role: tenantMembership.role,
     };
   }
+
+  const domainTenantContext = await getDomainTenantContextForUser(userId);
+  if (domainTenantContext) return domainTenantContext;
 
   const member = await collections.members.findOne({ userId, status: 'active' });
   if (member) {
@@ -134,6 +194,7 @@ export async function getUserContext(userId: string): Promise<UserContext> {
       isMember: true,
       mode: 'regular_user',
       tenantId: null,
+      tenantName: null,
       memberId: toId(member._id),
       role: null,
     };
@@ -146,6 +207,7 @@ export async function getUserContext(userId: string): Promise<UserContext> {
       isMember: false,
       mode: 'workspace_setup_deferred',
       tenantId: null,
+      tenantName: null,
       memberId: null,
       role: null,
     };
@@ -156,6 +218,7 @@ export async function getUserContext(userId: string): Promise<UserContext> {
     isMember: false,
     mode: 'needs_workspace_setup',
     tenantId: null,
+    tenantName: null,
     memberId: null,
     role: null,
   };
@@ -174,7 +237,7 @@ export async function getOnboardingStatus(userId: string): Promise<{ context: Us
   if (!context.isTenant && !context.isMember) {
     return { context, onboarding: { required: true, step: 'workspace_setup' } };
   }
-  if (context.isTenant) {
+  if (context.isTenant && context.role === 'admin') {
     const db = await getMongoDb();
     const collections = getOnboardingCollections(db);
     const tenant = await collections.tenants.findOne({ _id: new ObjectId(context.tenantId!) });
@@ -208,7 +271,7 @@ export async function getMe(userId: string): Promise<MeResponse> {
   return {
     user: { id: user.id, email: user.email, name: user.fullName },
     context,
-    authorization: getDashboardAuthorization(user.email, context),
+    authorization: getDashboardAuthorization(user.email, context, domainAuthorization.permissions),
     onboarding: status.onboarding,
   };
 }

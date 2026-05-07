@@ -12,6 +12,7 @@ export const DOMAIN_COLLECTIONS = {
   tenantProfiles: 'tenantProfiles',
   tenantServiceActivations: 'tenantServiceActivations',
   tenantMembers: 'tenantMembersV2',
+  tenantMemberInvitations: 'tenantMemberInvitations',
   memberGroups: 'memberGroups',
   memberGroupAssignments: 'memberGroupAssignments',
   tenantCatalogPolicies: 'tenantCatalogPolicies',

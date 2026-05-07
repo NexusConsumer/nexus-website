@@ -4,6 +4,8 @@
  */
 import { z } from 'zod';
 
+const inviteLanguageSchema = z.enum(['he', 'en']).default('he');
+
 export const inviteTenantMemberSchema = z.object({
   email: z.string().email().transform((value) => value.trim().toLowerCase()),
   displayName: z.string().trim().min(1).max(255).optional(),
@@ -11,6 +13,18 @@ export const inviteTenantMemberSchema = z.object({
   groupIds: z.array(z.string().min(1)).default([]),
   employeeId: z.string().trim().min(1).max(100).optional(),
   customFields: z.record(z.unknown()).default({}),
+  language: inviteLanguageSchema,
+  sendEmail: z.boolean().default(true),
+});
+
+export const bulkInviteTenantMembersSchema = z.object({
+  invitations: z.array(inviteTenantMemberSchema).min(1).max(200),
+  language: inviteLanguageSchema,
+});
+
+export const inviteTokenParamsSchema = z.object({
+  token: z.string().trim().min(24).max(512),
 });
 
 export type InviteTenantMemberInput = z.infer<typeof inviteTenantMemberSchema>;
+export type BulkInviteTenantMembersInput = z.infer<typeof bulkInviteTenantMembersSchema>;

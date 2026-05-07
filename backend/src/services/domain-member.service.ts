@@ -18,6 +18,8 @@ import { syncDomainTenantMembership } from './domain-tenant-sync.service';
 import { getUserContext } from './onboarding.service';
 import { getOnboardingCollections } from '../models/onboarding.models';
 import { ObjectId } from 'mongodb';
+import { buildMemberInviteLoginUrl, sendTenantMemberInviteEmail } from './domain-member-invite-email.service';
+import { generateToken, hashToken } from '../utils/crypto';
 
 export interface InviteTenantMemberResponse {
   tenantId: string;
@@ -27,6 +29,17 @@ export interface InviteTenantMemberResponse {
   role: TenantUserRoleName;
   status: 'active';
   groupIds: string[];
+  invitationId: string;
+  inviteUrl: string;
+  expiresAt: string;
+  emailSent: boolean;
+}
+
+export interface BulkInviteTenantMemberResult {
+  email: string;
+  ok: boolean;
+  result?: InviteTenantMemberResponse;
+  error?: string;
 }
 
 /**
@@ -53,7 +66,7 @@ async function getMemberManagerLoginUser(userId: string): Promise<{
  * Input: Prisma user id from the authenticated request.
  * Output: tenant id and manager identity id when permission is granted.
  */
-async function requireMemberManagementAccess(userId: string): Promise<{
+export async function requireMemberManagementAccess(userId: string): Promise<{
   tenantId: string;
   managerIdentityId: string;
 }> {
@@ -101,7 +114,7 @@ async function requireMemberManagementAccess(userId: string): Promise<{
  * Input: tenant id and requested group ids.
  * Output: deduplicated group ids or a 400 error when any group is invalid.
  */
-async function validateTenantGroupIds(tenantId: string, groupIds: string[]): Promise<string[]> {
+export async function validateTenantGroupIds(tenantId: string, groupIds: string[]): Promise<string[]> {
   const uniqueGroupIds = Array.from(new Set(groupIds));
   if (uniqueGroupIds.length === 0) return [];
 
@@ -115,6 +128,60 @@ async function validateTenantGroupIds(tenantId: string, groupIds: string[]): Pro
   if (missing.length > 0) throw createError('One or more member groups were not found', 400);
 
   return uniqueGroupIds;
+}
+
+/**
+ * Sends the invitation email and records provider metadata on the invite.
+ * Input: invite metadata, raw token, and email language.
+ * Output: true when the email provider accepted or skipped delivery.
+ */
+async function sendAndTrackInvitationEmail(input: {
+  invitationId: string;
+  email: string;
+  displayName?: string;
+  tenantName: string;
+  role: TenantUserRoleName;
+  token: string;
+  expiresAt: Date;
+  language: 'he' | 'en';
+  shouldSendEmail: boolean;
+}): Promise<boolean> {
+  if (!input.shouldSendEmail) return false;
+
+  const db = await getMongoDb();
+  const collections = getTenantDomainCollections(db);
+  const inviteUrl = buildMemberInviteLoginUrl(input.token, input.language);
+
+  try {
+    const messageId = await sendTenantMemberInviteEmail({
+      to: input.email,
+      displayName: input.displayName,
+      tenantName: input.tenantName,
+      role: input.role,
+      inviteUrl,
+      expiresAt: input.expiresAt,
+      language: input.language,
+    });
+
+    await collections.tenantMemberInvitations.updateOne(
+      { tenantMemberInvitationId: input.invitationId },
+      {
+        $set: {
+          ...(messageId ? { emailMessageId: messageId } : {}),
+          lastEmailSentAt: new Date(),
+          updatedAt: new Date(),
+        },
+      },
+    );
+    return true;
+  } catch (error) {
+    console.error('[DomainMemberInvite] Email delivery failed', {
+      invitationId: input.invitationId,
+      email: input.email,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
 }
 
 /**
@@ -136,6 +203,7 @@ export async function inviteTenantMemberByEmail(
   const tenantCollections = getTenantDomainCollections(db);
   const identityCollections = getIdentityDomainCollections(db);
   const now = new Date();
+  const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const existingMembership = await tenantCollections.tenantMembers.findOne({
     tenantId: access.tenantId,
@@ -193,6 +261,41 @@ export async function inviteTenantMemberByEmail(
     );
   }
 
+  const tenant = await tenantCollections.domainTenants.findOne(
+    { tenantId: access.tenantId },
+    { projection: { organizationName: 1 } },
+  );
+  const rawToken = generateToken(48);
+  const invitationId = `tenant_member_invitation_${randomUUID()}`;
+  await tenantCollections.tenantMemberInvitations.insertOne({
+    tenantMemberInvitationId: invitationId,
+    tenantId: access.tenantId,
+    tenantMemberId,
+    nexusIdentityId: invitedIdentity.nexusIdentityId,
+    invitedEmail: input.email,
+    normalizedEmail: invitedIdentity.normalizedEmail,
+    role: input.role,
+    groupIds,
+    tokenHash: hashToken(rawToken),
+    status: 'pending',
+    invitedByIdentityId: access.managerIdentityId,
+    expiresAt,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const emailSent = await sendAndTrackInvitationEmail({
+    invitationId,
+    email: invitedIdentity.normalizedEmail,
+    displayName: input.displayName,
+    tenantName: tenant?.organizationName ?? 'Nexus',
+    role: input.role,
+    token: rawToken,
+    expiresAt,
+    language: input.language,
+    shouldSendEmail: input.sendEmail,
+  });
+
   return {
     tenantId: access.tenantId,
     tenantMemberId,
@@ -201,5 +304,36 @@ export async function inviteTenantMemberByEmail(
     role: input.role,
     status: 'active',
     groupIds,
+    invitationId,
+    inviteUrl: buildMemberInviteLoginUrl(rawToken, input.language),
+    expiresAt: expiresAt.toISOString(),
+    emailSent,
   };
+}
+
+/**
+ * Invites many tenant members independently from one dashboard submit.
+ * Input: manager user id and validated invite rows.
+ * Output: per-email success or failure results; one bad row does not stop all.
+ */
+export async function bulkInviteTenantMembersByEmail(
+  managerUserId: string,
+  invitations: InviteTenantMemberInput[],
+): Promise<{ results: BulkInviteTenantMemberResult[] }> {
+  const results: BulkInviteTenantMemberResult[] = [];
+
+  for (const invitation of invitations) {
+    try {
+      const result = await inviteTenantMemberByEmail(managerUserId, invitation);
+      results.push({ email: invitation.email, ok: true, result });
+    } catch (error) {
+      results.push({
+        email: invitation.email,
+        ok: false,
+        error: error instanceof Error ? error.message : 'invite_failed',
+      });
+    }
+  }
+
+  return { results };
 }
