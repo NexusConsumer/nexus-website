@@ -26,5 +26,9 @@ export const inviteTokenParamsSchema = z.object({
   token: z.string().trim().min(24).max(512),
 });
 
+export const invitationIdParamsSchema = z.object({
+  invitationId: z.string().trim().min(1).max(150).regex(/^tenant_member_invitation_[A-Za-z0-9-]+$/),
+});
+
 export type InviteTenantMemberInput = z.infer<typeof inviteTenantMemberSchema>;
 export type BulkInviteTenantMembersInput = z.infer<typeof bulkInviteTenantMembersSchema>;

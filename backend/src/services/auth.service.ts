@@ -171,8 +171,8 @@ export async function register(
     password: string;
     country?: string;
     emailUpdates?: boolean;
+    dashboardRedirect?: string;
   },
-  _meta: { userAgent?: string; ipAddress?: string } = {},
 ) {
   const email = data.email.toLowerCase().trim();
   const fullName = data.fullName.trim();
@@ -185,12 +185,30 @@ export async function register(
   const rawVerificationToken = generateToken(48);
   const tokenHash = hashToken(rawVerificationToken);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  const dashboardRedirect = getSafeDashboardRedirect(data.dashboardRedirect);
 
   // Store as a pending registration — user row is NOT created until email is confirmed
   await prisma.pendingRegistration.upsert({
     where: { email },
-    update: { passwordHash, fullName, country: data.country ?? 'IL', emailUpdates: data.emailUpdates ?? true, tokenHash, expiresAt },
-    create: { email, passwordHash, fullName, country: data.country ?? 'IL', emailUpdates: data.emailUpdates ?? true, tokenHash, expiresAt },
+    update: {
+      passwordHash,
+      fullName,
+      country: data.country ?? 'IL',
+      emailUpdates: data.emailUpdates ?? true,
+      tokenHash,
+      dashboardRedirect,
+      expiresAt,
+    },
+    create: {
+      email,
+      passwordHash,
+      fullName,
+      country: data.country ?? 'IL',
+      emailUpdates: data.emailUpdates ?? true,
+      tokenHash,
+      dashboardRedirect,
+      expiresAt,
+    },
   });
 
   return { email, fullName, rawVerificationToken };
@@ -225,7 +243,20 @@ export async function verifyEmail(
     return newUser;
   });
 
-  return issueTokens(user.id, user.email, user.role, false, meta);
+  return {
+    ...(await issueTokens(user.id, user.email, user.role, false, meta)),
+    dashboardRedirect: pending.dashboardRedirect,
+  };
+}
+
+/**
+ * Accepts only local dashboard paths for stored auth continuations.
+ * Input: raw redirect path from the website signup request.
+ * Output: safe local path, or null when no safe path was supplied.
+ */
+function getSafeDashboardRedirect(redirectPath: string | undefined): string | null {
+  if (!redirectPath || !redirectPath.startsWith('/') || redirectPath.startsWith('//')) return null;
+  return redirectPath;
 }
 
 export async function resendVerification(email: string) {

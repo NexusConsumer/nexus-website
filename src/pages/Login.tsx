@@ -2,7 +2,7 @@
  * Renders the website sign-in page and redirects regular users into the
  * separate dashboard app after the backend creates a one-time SSO code.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAnalytics } from '../hooks/useAnalytics';
 import AnimatedGradient from '../components/AnimatedGradient';
 import GoogleSignIn from '../components/GoogleSignIn';
@@ -60,39 +60,42 @@ export default function Login() {
    * Input: SSO code from the website backend and the final dashboard path.
    * Output: absolute dashboard callback URL safe for a full-page redirect.
    */
-  const buildDashboardCallbackUrl = (code: string, redirectPath: string) => {
+  const buildDashboardCallbackUrl = useCallback((code: string, redirectPath: string) => {
     const url = new URL('/auth/callback', DASHBOARD_URL);
     url.searchParams.set('code', code);
     url.searchParams.set('redirect', redirectPath);
     url.searchParams.set('lang', language);
     return url.toString();
-  };
+  }, [DASHBOARD_URL, language]);
 
   /**
    * Chooses the dashboard path that should open after auth handoff.
    * Input: authenticated user profile returned by the website backend.
    * Output: organization dashboard path, or "/" when no single organization exists.
    */
-  const getDashboardRedirectPath = (user: { orgMemberships?: { org: { slug: string } }[] }) => {
+  const getDashboardRedirectPath = useCallback((user: { orgMemberships?: { org: { slug: string } }[] }) => {
     if (dashboardRedirect && dashboardRedirect.startsWith('/') && !dashboardRedirect.startsWith('//')) {
       return dashboardRedirect;
     }
     const orgs = user.orgMemberships ?? [];
     return orgs.length === 1 ? `/organizations/${orgs[0].org.slug}` : '/';
-  };
+  }, [dashboardRedirect]);
+  const googleDashboardRedirect = dashboardRedirect && dashboardRedirect.startsWith('/') && !dashboardRedirect.startsWith('//')
+    ? dashboardRedirect
+    : workspacePath;
 
   /**
    * Sends an authenticated website user to the dashboard with a fresh SSO code.
    * Input: authenticated user profile and the remembered-device choice.
    * Output: navigation occurs in the current browser tab.
    */
-  const redirectToDashboard = async (
+  const redirectToDashboard = useCallback(async (
     user: { orgMemberships?: { org: { slug: string } }[] },
     shouldRememberDevice?: boolean,
   ) => {
     const { code } = await api.post<{ code: string }>('/api/auth/create-code', { rememberMe: shouldRememberDevice });
     window.location.replace(buildDashboardCallbackUrl(code, getDashboardRedirectPath(user)));
-  };
+  }, [buildDashboardCallbackUrl, getDashboardRedirectPath]);
 
   /**
    * Sends a regular authenticated user to the dashboard with a fresh SSO code.
@@ -116,7 +119,7 @@ export default function Login() {
     };
 
     void redirectExistingSession();
-  }, [authenticatedUser, isAuthLoading]);
+  }, [authenticatedUser, isAuthLoading, redirectToDashboard]);
 
   const isFormValid = email.trim() !== '' && password.trim() !== '';
 
@@ -328,7 +331,7 @@ export default function Login() {
 
               {/* Social Sign In */}
               <div className="space-y-3">
-                <GoogleSignIn redirectTo={workspacePath} />
+                <GoogleSignIn redirectTo={googleDashboardRedirect} />
               </div>
 
               {/* New User Link */}

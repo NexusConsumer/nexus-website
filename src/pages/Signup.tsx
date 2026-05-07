@@ -83,6 +83,15 @@ export default function Signup() {
   const loginPathWithRedirect = dashboardRedirect
     ? `${loginPath}?dashboardRedirect=${encodeURIComponent(dashboardRedirect)}`
     : loginPath;
+  const googleDashboardRedirect = dashboardRedirect && dashboardRedirect.startsWith('/') && !dashboardRedirect.startsWith('//')
+    ? dashboardRedirect
+    : workspacePath;
+
+  useEffect(() => {
+    if (dashboardRedirect && dashboardRedirect.startsWith('/') && !dashboardRedirect.startsWith('//')) {
+      sessionStorage.setItem('nexus_dashboard_redirect_after_verify', dashboardRedirect);
+    }
+  }, [dashboardRedirect]);
 
   const features = [
     {
@@ -218,7 +227,16 @@ export default function Signup() {
     setIsLoading(true);
 
     try {
-      const result = await register({ email, fullName, password, country, emailUpdates, language });
+      const result = await register({
+        email,
+        fullName,
+        password,
+        country,
+        emailUpdates,
+        dashboardRedirect: dashboardRedirect && dashboardRedirect.startsWith('/') && !dashboardRedirect.startsWith('//')
+          ? dashboardRedirect
+          : undefined,
+      });
       if (result?.requiresVerification) {
         setVerificationEmail(result.email);
         setStep('verify');
@@ -249,7 +267,7 @@ export default function Signup() {
         return s - 1;
       });
     }, 1000);
-  }, [verificationEmail, resendCooldown]);
+  }, [language, verificationEmail, resendCooldown]);
 
   const getCountryName = (c: typeof countries[0]) => isHe ? c.nameHe : c.name;
 
@@ -569,7 +587,7 @@ export default function Signup() {
                   </div>
 
                   {/* Google sign up */}
-                  <GoogleSignIn redirectTo={workspacePath} />
+                  <GoogleSignIn redirectTo={googleDashboardRedirect} />
                 </div>
 
                 {/* Already have account */}
