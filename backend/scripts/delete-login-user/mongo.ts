@@ -62,6 +62,7 @@ export async function collectMongoCounts(
     tenantUserRolesForOwnedTenants,
     tenantMembersV2,
     tenantMembersV2ForOwnedTenants,
+    tenantMemberInvitations,
     memberGroupAssignments,
     memberGroupAssignmentsForOwnedTenants,
     domainTenants,
@@ -103,6 +104,15 @@ export async function collectMongoCounts(
       tenantId: { $nin: targets.domainOwnedTenantIds },
     }),
     tenants.tenantMembers.countDocuments({ tenantId: { $in: targets.domainOwnedTenantIds } }),
+    tenants.tenantMemberInvitations.countDocuments({
+      $or: [
+        { normalizedEmail: email },
+        { invitedEmail: email },
+        ...(targets.nexusIdentityIds.length ? [{ nexusIdentityId: { $in: targets.nexusIdentityIds } }] : []),
+        ...(targets.domainTenantMemberIds.length ? [{ tenantMemberId: { $in: targets.domainTenantMemberIds } }] : []),
+        ...(targets.domainOwnedTenantIds.length ? [{ tenantId: { $in: targets.domainOwnedTenantIds } }] : []),
+      ],
+    }),
     tenants.memberGroupAssignments.countDocuments({
       tenantMemberId: { $in: targets.domainTenantMemberIds },
       tenantId: { $nin: targets.domainOwnedTenantIds },
@@ -157,6 +167,7 @@ export async function collectMongoCounts(
     tenantUserRolesForOwnedTenants,
     tenantMembersV2,
     tenantMembersV2ForOwnedTenants,
+    tenantMemberInvitations,
     memberGroupAssignments,
     memberGroupAssignmentsForOwnedTenants,
     domainTenants,
@@ -213,6 +224,15 @@ export async function deleteMongoUser(email: string, prismaUser: PrismaUserSnaps
     $or: [
       { nexusIdentityId: { $in: targets.nexusIdentityIds } },
       { tenantId: { $in: targets.domainOwnedTenantIds } },
+    ],
+  });
+  await tenants.tenantMemberInvitations.deleteMany({
+    $or: [
+      { normalizedEmail: email },
+      { invitedEmail: email },
+      ...(targets.nexusIdentityIds.length ? [{ nexusIdentityId: { $in: targets.nexusIdentityIds } }] : []),
+      ...(targets.domainTenantMemberIds.length ? [{ tenantMemberId: { $in: targets.domainTenantMemberIds } }] : []),
+      ...(targets.domainOwnedTenantIds.length ? [{ tenantId: { $in: targets.domainOwnedTenantIds } }] : []),
     ],
   });
   await identity.tenantUserRoles.deleteMany({
