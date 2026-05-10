@@ -1,16 +1,17 @@
 /**
  * Builds and sends tenant member invitation emails.
+ * Visual style matches the reset-password email: logo banner, centered card, table layout.
  * The email sends users to the website login first, then into dashboard accept.
  */
 import { env } from '../config/env';
-import { sendMail } from './email.service';
+import { buildAuthEmailBannerHtml, sendMail } from './email.service';
 import type { TenantUserRoleName } from '../models/domain';
 
 export interface TenantMemberInviteEmailInput {
   to: string;
   displayName?: string;
   tenantName: string;
-  role: TenantUserRoleName;
+  roles: TenantUserRoleName[];
   inviteUrl: string;
   expiresAt: Date;
   language: 'he' | 'en';
@@ -57,6 +58,32 @@ function formatExpiryDate(expiresAt: Date, language: 'he' | 'en'): string {
 }
 
 /**
+ * Builds a comma-separated localized role list for email body text.
+ * Input: role names and target language.
+ * Output: comma-separated localized role labels, HTML-escaped.
+ */
+function formatRoleList(roles: TenantUserRoleName[], language: 'he' | 'en'): string {
+  return roles
+    .map((role) => escapeHtml(ROLE_LABELS[role]?.[language] ?? role))
+    .join(language === 'he' ? '، ' : ', ');
+}
+
+/**
+ * Builds role badges HTML for the email card.
+ * Input: role names and language.
+ * Output: inline-block pill spans for each role.
+ */
+function buildRoleBadgesHtml(roles: TenantUserRoleName[], language: 'he' | 'en'): string {
+  const badges = roles
+    .map((role) => {
+      const label = escapeHtml(ROLE_LABELS[role]?.[language] ?? role);
+      return `<span style="display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:20px;padding:4px 14px;font-size:13px;font-weight:600;color:#1e293b;margin:3px 4px;">${label}</span>`;
+    })
+    .join('');
+  return `<div style="margin:16px 0;text-align:center;">${badges}</div>`;
+}
+
+/**
  * Creates the website URL that starts auth before dashboard invite acceptance.
  * Input: raw invite token and target email language.
  * Output: absolute login URL with a safe dashboard redirect query.
@@ -71,53 +98,81 @@ export function buildMemberInviteLoginUrl(token: string, language: 'he' | 'en'):
 
 /**
  * Sends one tenant member invite email through the shared email provider.
- * Input: invite recipient, tenant name, role, URL, expiry, and language.
+ * Matches the reset-password email visual style: logo banner, white card, centered layout.
+ * Input: invite recipient, tenant name, roles, URL, expiry, and language.
  * Output: provider message id, or null when email is disabled.
  */
 export async function sendTenantMemberInviteEmail(
   input: TenantMemberInviteEmailInput,
 ): Promise<string | null> {
   const isHebrew = input.language === 'he';
+  const dir = isHebrew ? 'rtl' : 'ltr';
   const tenantName = escapeHtml(input.tenantName);
-  const roleLabel = ROLE_LABELS[input.role]?.[input.language] ?? input.role;
-  const expiry = formatExpiryDate(input.expiresAt, input.language);
+  const roleList = formatRoleList(input.roles, input.language);
+  const roleBadges = buildRoleBadgesHtml(input.roles, input.language);
+  const expiry = escapeHtml(formatExpiryDate(input.expiresAt, input.language));
   const escapedUrl = escapeHtml(input.inviteUrl);
+  const bannerHtml = buildAuthEmailBannerHtml();
+
   const subject = isHebrew
     ? `הוזמנת להצטרף ל-${tenantName} ב-Nexus`
     : `You were invited to join ${tenantName} on Nexus`;
-  const direction = isHebrew ? 'rtl' : 'ltr';
-  const align = isHebrew ? 'right' : 'left';
-  const body = isHebrew
+
+  const copy = isHebrew
     ? {
         title: `הוזמנת להצטרף ל-${tenantName}`,
-        intro: `התפקיד שלך בסביבת העבודה הוא ${escapeHtml(roleLabel)}.`,
+        roleLabel: input.roles.length === 1 ? 'התפקיד שלך:' : 'התפקידים שלך:',
+        intro: input.roles.length === 1
+          ? `התפקיד שלך בסביבת העבודה הוא ${roleList}.`
+          : `התפקידים שלך בסביבת העבודה: ${roleList}.`,
         action: 'כניסה ואישור הזמנה',
-        note: `הקישור בתוקף עד ${escapeHtml(expiry)}.`,
+        note: `הקישור בתוקף עד ${expiry}.`,
+        fallback: 'אם הכפתור לא עובד, ניתן להיכנס דרך הקישור:',
       }
     : {
         title: `You were invited to join ${tenantName}`,
-        intro: `Your workspace role is ${escapeHtml(roleLabel)}.`,
+        roleLabel: input.roles.length === 1 ? 'Your role:' : 'Your roles:',
+        intro: input.roles.length === 1
+          ? `Your workspace role is ${roleList}.`
+          : `Your workspace roles are: ${roleList}.`,
         action: 'Sign in and accept invite',
-        note: `This link expires on ${escapeHtml(expiry)}.`,
+        note: `This link expires on ${expiry}.`,
+        fallback: "If the button doesn't work, use this link:",
       };
 
   const html = `<!doctype html>
-<html lang="${input.language}" dir="${direction}">
-<body style="margin:0;background:#f8fafc;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
-  <main style="max-width:560px;margin:0 auto;padding:28px 16px;text-align:${align};">
-    <section style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:28px;">
-      <h1 style="font-size:24px;line-height:1.3;margin:0 0 14px;">${body.title}</h1>
-      <p style="font-size:15px;line-height:1.7;margin:0 0 24px;color:#475569;">${body.intro}</p>
-      <a href="${escapedUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;border-radius:8px;padding:12px 18px;font-size:14px;font-weight:700;">
-        ${body.action}
-      </a>
-      <p style="font-size:12px;line-height:1.6;margin:24px 0 0;color:#64748b;">${body.note}</p>
-    </section>
-  </main>
+<html lang="${input.language}" dir="${dir}">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;direction:${dir};">
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr><td align="center" style="padding:40px 20px;">
+<table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:14px;padding:40px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
+<tr><td align="center">
+  ${bannerHtml}
+  <h1 style="margin:0;color:#111;font-size:26px;">${copy.title}</h1>
+  <p style="margin:18px 0 8px 0;color:#555;font-size:15px;line-height:1.6;">${copy.intro}</p>
+  ${roleBadges}
+</td></tr>
+<tr><td align="center" style="padding:24px 0 8px 0;">
+  <a href="${escapedUrl}" style="background:#111;color:white;padding:15px 36px;border-radius:10px;font-size:16px;font-weight:bold;text-decoration:none;display:inline-block;">
+    ${copy.action}
+  </a>
+</td></tr>
+<tr><td align="center">
+  <p style="font-size:12px;color:#999;margin-top:20px;line-height:1.6;">
+    ${copy.note}
+  </p>
+</td></tr>
+</table>
+<p style="font-size:13px;color:#888;margin-top:25px;text-align:center;">${copy.fallback}</p>
+<p style="font-size:13px;color:#444;word-break:break-all;text-align:center;">${escapedUrl}</p>
+</td></tr>
+</table>
 </body>
 </html>`;
 
-  const text = `${body.title}\n\n${body.intro}\n\n${input.inviteUrl}\n\n${body.note}`;
+  const text = `${copy.title}\n\n${copy.intro}\n\n${input.inviteUrl}\n\n${copy.note}`;
+
   return await sendMail({
     to: input.to,
     toName: input.displayName,

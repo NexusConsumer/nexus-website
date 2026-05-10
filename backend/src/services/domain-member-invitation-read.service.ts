@@ -19,7 +19,7 @@ export interface TenantMemberInvitationPreview {
   tenantId?: string;
   tenantName: string;
   invitedEmail: string;
-  role: TenantUserRoleName;
+  roles: TenantUserRoleName[];
   status: string;
   expiresAt: string;
 }
@@ -49,10 +49,16 @@ export async function getTenantMemberInvitationPreview(token: string): Promise<T
     { projection: { organizationName: 1 } },
   );
 
+  const roles = Array.isArray(invite.roles) && invite.roles.length > 0
+    ? (invite.roles as TenantUserRoleName[])
+    : (invite as unknown as { role?: string }).role
+      ? [(invite as unknown as { role: string }).role as TenantUserRoleName]
+      : ([] as TenantUserRoleName[]);
+
   return {
     tenantName: tenant?.organizationName ?? 'Nexus',
     invitedEmail: invite.normalizedEmail,
-    role: invite.role as TenantUserRoleName,
+    roles,
     status: invite.status,
     expiresAt: invite.expiresAt.toISOString(),
   };
@@ -87,7 +93,7 @@ export async function listMyPendingTenantMemberInvitations(userId: string): Prom
           tenantMemberInvitationId: 1,
           tenantId: 1,
           normalizedEmail: 1,
-          role: 1,
+          roles: 1,
           status: 1,
           expiresAt: 1,
         },
@@ -101,15 +107,22 @@ export async function listMyPendingTenantMemberInvitations(userId: string): Prom
   const tenantNameById = new Map(tenants.map((tenant) => [tenant.tenantId, tenant.organizationName]));
 
   return {
-    invitations: invitations.map((invitation) => ({
-      invitationId: invitation.tenantMemberInvitationId,
-      tenantId: invitation.tenantId,
-      tenantName: tenantNameById.get(invitation.tenantId) ?? 'Nexus',
-      invitedEmail: invitation.normalizedEmail,
-      role: invitation.role as TenantUserRoleName,
-      status: invitation.status,
-      expiresAt: invitation.expiresAt.toISOString(),
-    })),
+    invitations: invitations.map((invitation) => {
+      const roles = Array.isArray(invitation.roles) && invitation.roles.length > 0
+        ? (invitation.roles as TenantUserRoleName[])
+        : (invitation as unknown as { role?: string }).role
+          ? [(invitation as unknown as { role: string }).role as TenantUserRoleName]
+          : ([] as TenantUserRoleName[]);
+      return {
+        invitationId: invitation.tenantMemberInvitationId,
+        tenantId: invitation.tenantId,
+        tenantName: tenantNameById.get(invitation.tenantId) ?? 'Nexus',
+        invitedEmail: invitation.normalizedEmail,
+        roles,
+        status: invitation.status,
+        expiresAt: invitation.expiresAt.toISOString(),
+      };
+    }),
   };
 }
 
@@ -118,15 +131,29 @@ export async function listMyPendingTenantMemberInvitations(userId: string): Prom
  * Input: invitation document and accepted identity id.
  * Output: accepted tenant id, role, and idempotency flag.
  */
+/**
+ * Resolves roles from an invitation document, falling back to legacy single role field.
+ * Input: invitation document from Mongo.
+ * Output: array of role names.
+ */
+function resolveInvitationRoles(invite: TenantMemberInvitationDocument): TenantUserRoleName[] {
+  if (Array.isArray(invite.roles) && invite.roles.length > 0) {
+    return invite.roles as TenantUserRoleName[];
+  }
+  const legacyRole = (invite as unknown as { role?: string }).role;
+  return legacyRole ? [legacyRole as TenantUserRoleName] : [];
+}
+
 async function markTenantMemberInvitationAccepted(
   invite: TenantMemberInvitationDocument,
   acceptedByIdentityId: string,
-): Promise<{ tenantId: string; role: TenantUserRoleName; alreadyAccepted: boolean }> {
+): Promise<{ tenantId: string; roles: TenantUserRoleName[]; alreadyAccepted: boolean }> {
   const now = new Date();
+  const roles = resolveInvitationRoles(invite);
   if (invite.status === 'revoked') throw createError('Invitation was revoked', 410);
   if (invite.expiresAt <= now) throw createError('Invitation link expired', 410);
   if (invite.status === 'accepted') {
-    return { tenantId: invite.tenantId, role: invite.role as TenantUserRoleName, alreadyAccepted: true };
+    return { tenantId: invite.tenantId, roles, alreadyAccepted: true };
   }
   if (invite.status !== 'pending') throw createError(`Invitation is ${invite.status}`, 409);
 
@@ -138,7 +165,7 @@ async function markTenantMemberInvitationAccepted(
   );
   if (updateResult.matchedCount !== 1) throw createError('Invitation could not be accepted', 409);
 
-  return { tenantId: invite.tenantId, role: invite.role as TenantUserRoleName, alreadyAccepted: false };
+  return { tenantId: invite.tenantId, roles, alreadyAccepted: false };
 }
 
 /**
@@ -183,7 +210,7 @@ async function loadMatchingInvitation(input: { userId: string; token?: string; i
 export async function acceptTenantMemberInvitation(
   userId: string,
   token: string,
-): Promise<{ tenantId: string; role: TenantUserRoleName; alreadyAccepted: boolean }> {
+): Promise<{ tenantId: string; roles: TenantUserRoleName[]; alreadyAccepted: boolean }> {
   const { invite, identity } = await loadMatchingInvitation({ userId, token });
   return markTenantMemberInvitationAccepted(invite, identity.nexusIdentityId);
 }
@@ -191,12 +218,12 @@ export async function acceptTenantMemberInvitation(
 /**
  * Accepts one pending invitation selected from the authenticated user's list.
  * Input: Prisma user id and tenant member invitation id.
- * Output: accepted tenant id, role, and whether it was already accepted.
+ * Output: accepted tenant id, roles, and whether it was already accepted.
  */
 export async function acceptMyTenantMemberInvitationById(
   userId: string,
   invitationId: string,
-): Promise<{ tenantId: string; role: TenantUserRoleName; alreadyAccepted: boolean }> {
+): Promise<{ tenantId: string; roles: TenantUserRoleName[]; alreadyAccepted: boolean }> {
   const { invite, identity } = await loadMatchingInvitation({ userId, invitationId });
   return markTenantMemberInvitationAccepted(invite, identity.nexusIdentityId);
 }

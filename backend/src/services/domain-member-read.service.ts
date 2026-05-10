@@ -55,7 +55,7 @@ export async function listTenantMembersForManager(userId: string): Promise<{
           tenantMemberId: 1,
           nexusIdentityId: 1,
           normalizedEmail: 1,
-          role: 1,
+          roles: 1,
           status: 1,
           expiresAt: 1,
           createdAt: 1,
@@ -81,7 +81,7 @@ export async function listTenantMembersForManager(userId: string): Promise<{
   const identityById = new Map(identities.map((identity) => [identity.nexusIdentityId, identity]));
   const rolesByIdentity = new Map<string, TenantUserRoleName[]>();
   const groupsByMember = new Map<string, string[]>();
-  const invitationByMember = new Map<string, { status: string; expiresAt: Date; role: TenantUserRoleName; createdAt: Date }>();
+  const invitationByMember = new Map<string, { status: string; expiresAt: Date; roles: TenantUserRoleName[]; createdAt: Date }>();
 
   for (const role of roles) {
     rolesByIdentity.set(role.nexusIdentityId, [...(rolesByIdentity.get(role.nexusIdentityId) ?? []), role.role]);
@@ -94,10 +94,15 @@ export async function listTenantMembersForManager(userId: string): Promise<{
   }
   for (const invitation of invitations) {
     if (!invitationByMember.has(invitation.tenantMemberId)) {
+      const invRoles = Array.isArray(invitation.roles) && invitation.roles.length > 0
+        ? (invitation.roles as TenantUserRoleName[])
+        : (invitation as unknown as { role?: string }).role
+          ? [(invitation as unknown as { role: string }).role as TenantUserRoleName]
+          : ([] as TenantUserRoleName[]);
       invitationByMember.set(invitation.tenantMemberId, {
         status: invitation.status,
         expiresAt: invitation.expiresAt,
-        role: invitation.role as TenantUserRoleName,
+        roles: invRoles,
         createdAt: invitation.createdAt,
       });
     }
@@ -127,6 +132,11 @@ export async function listTenantMembersForManager(userId: string): Promise<{
         .filter((invitation) => !memberIdsSet.has(invitation.tenantMemberId))
         .map((invitation) => {
           const identity = identityById.get(invitation.nexusIdentityId);
+          const invRoles = Array.isArray(invitation.roles) && invitation.roles.length > 0
+            ? (invitation.roles as TenantUserRoleName[])
+            : (invitation as unknown as { role?: string }).role
+              ? [(invitation as unknown as { role: string }).role as TenantUserRoleName]
+              : ([] as TenantUserRoleName[]);
           return {
             tenantMemberId: invitation.tenantMemberId,
             nexusIdentityId: invitation.nexusIdentityId,
@@ -135,7 +145,7 @@ export async function listTenantMembersForManager(userId: string): Promise<{
             status: invitation.status === 'pending' ? 'pending_invitation' : invitation.status,
             invitationStatus: invitation.status,
             invitationExpiresAt: invitation.expiresAt.toISOString(),
-            roles: [invitation.role as TenantUserRoleName],
+            roles: invRoles,
             groupIds: [],
             joinedAt: invitation.createdAt.toISOString(),
           };

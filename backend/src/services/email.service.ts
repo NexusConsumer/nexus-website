@@ -93,7 +93,7 @@ function buildPublicAssetUrl(path: string): string {
  * Inputs: none.
  * Output: an email-client-friendly HTML banner with an absolute image URL.
  */
-function buildAuthEmailBannerHtml(): string {
+export function buildAuthEmailBannerHtml(): string {
   const bannerUrl = buildPublicAssetUrl(AUTH_EMAIL_BANNER_PATH);
 
   return `<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:22px 20px;margin-bottom:30px;text-align:center;">
