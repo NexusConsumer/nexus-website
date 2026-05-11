@@ -27,7 +27,7 @@ export interface InviteTenantMemberResponse {
   tenantMemberId: string;
   nexusIdentityId: string;
   email: string;
-  role: TenantUserRoleName;
+  roles: TenantUserRoleName[];
   status: 'active';
   groupIds: string[];
   invitationId: string;
@@ -153,7 +153,7 @@ async function sendAndTrackInvitationEmail(input: {
   email: string;
   displayName?: string;
   tenantName: string;
-  role: TenantUserRoleName;
+  roles: TenantUserRoleName[];
   token: string;
   expiresAt: Date;
   language: 'he' | 'en';
@@ -170,7 +170,7 @@ async function sendAndTrackInvitationEmail(input: {
       to: input.email,
       displayName: input.displayName,
       tenantName: input.tenantName,
-      role: input.role,
+      roles: input.roles,
       inviteUrl,
       expiresAt: input.expiresAt,
       language: input.language,
@@ -237,20 +237,26 @@ export async function inviteTenantMemberByEmail(
     updatedAt: now,
   });
 
-  await identityCollections.tenantUserRoles.updateOne(
-    { tenantId: access.tenantId, nexusIdentityId: invitedIdentity.nexusIdentityId, role: input.role },
-    {
-      $setOnInsert: {
-        tenantUserRoleId: `tenant_user_role_${randomUUID()}`,
-        nexusIdentityId: invitedIdentity.nexusIdentityId,
-        tenantId: access.tenantId,
-        role: input.role,
-        grantedByIdentityId: access.managerIdentityId,
-        createdAt: now,
+  const uniqueRoles = Array.from(new Set(input.roles));
+  await identityCollections.tenantUserRoles.bulkWrite(
+    uniqueRoles.map((role) => ({
+      updateOne: {
+        filter: { tenantId: access.tenantId, nexusIdentityId: invitedIdentity.nexusIdentityId, role },
+        update: {
+          $setOnInsert: {
+            tenantUserRoleId: `tenant_user_role_${randomUUID()}`,
+            nexusIdentityId: invitedIdentity.nexusIdentityId,
+            tenantId: access.tenantId,
+            role,
+            grantedByIdentityId: access.managerIdentityId,
+            createdAt: now,
+          },
+          $set: { updatedAt: now },
+        },
+        upsert: true,
       },
-      $set: { updatedAt: now },
-    },
-    { upsert: true },
+    })),
+    { ordered: false },
   );
 
   if (groupIds.length > 0) {
@@ -287,7 +293,7 @@ export async function inviteTenantMemberByEmail(
     nexusIdentityId: invitedIdentity.nexusIdentityId,
     invitedEmail: input.email,
     normalizedEmail: invitedIdentity.normalizedEmail,
-    role: input.role,
+    roles: uniqueRoles,
     groupIds,
     tokenHash: hashToken(rawToken),
     status: 'pending',
@@ -302,7 +308,7 @@ export async function inviteTenantMemberByEmail(
     email: invitedIdentity.normalizedEmail,
     displayName: input.displayName,
     tenantName: tenant?.organizationName ?? 'Nexus',
-    role: input.role,
+    roles: uniqueRoles,
     token: rawToken,
     expiresAt,
     language: input.language,
@@ -314,7 +320,7 @@ export async function inviteTenantMemberByEmail(
     tenantMemberId,
     nexusIdentityId: invitedIdentity.nexusIdentityId,
     email: invitedIdentity.normalizedEmail,
-    role: input.role,
+    roles: uniqueRoles,
     status: 'active',
     groupIds,
     invitationId,

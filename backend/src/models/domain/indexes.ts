@@ -33,9 +33,13 @@ export async function ensureDomainIndexes(db: Db): Promise<void> {
     tenants.tenantServiceActivations.createIndex({ tenantId: 1, serviceKey: 1 }, { unique: true }),
     tenants.tenantMembers.createIndex({ nexusIdentityId: 1, tenantId: 1 }, { unique: true }),
     tenants.tenantMembers.createIndex({ tenantId: 1, status: 1 }),
+    // Compound index for paginated member list sorted by creation time.
+    tenants.tenantMembers.createIndex({ tenantId: 1, createdAt: -1 }),
     tenants.tenantMemberInvitations.createIndex({ tokenHash: 1 }, { unique: true }),
     tenants.tenantMemberInvitations.createIndex({ tenantId: 1, normalizedEmail: 1, status: 1 }),
     tenants.tenantMemberInvitations.createIndex({ expiresAt: 1 }),
+    // Compound index for listing pending invitations by tenant, sorted by creation time.
+    tenants.tenantMemberInvitations.createIndex({ tenantId: 1, status: 1, createdAt: -1 }),
     tenants.memberGroups.createIndex({ tenantId: 1, name: 1 }, { unique: true }),
     tenants.memberGroupAssignments.createIndex({ memberGroupId: 1, tenantMemberId: 1 }, { unique: true }),
     tenants.tenantCatalogPolicies.createIndex({ tenantId: 1 }, { unique: true }),

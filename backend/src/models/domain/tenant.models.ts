@@ -113,7 +113,7 @@ export const tenantMemberInvitationSchema = z.object({
   nexusIdentityId: z.string().min(1),
   invitedEmail: z.string().email(),
   normalizedEmail: z.string().email(),
-  role: z.string().min(1).max(100),
+  roles: z.array(z.string().min(1).max(100)).min(1),
   groupIds: z.array(z.string().min(1)).default([]),
   tokenHash: z.string().min(64).max(64),
   status: z.enum(TENANT_MEMBER_INVITATION_STATUSES),

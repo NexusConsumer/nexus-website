@@ -9,7 +9,9 @@ const inviteLanguageSchema = z.enum(['he', 'en']).default('he');
 export const inviteTenantMemberSchema = z.object({
   email: z.string().email().transform((value) => value.trim().toLowerCase()),
   displayName: z.string().trim().min(1).max(255).optional(),
-  role: z.enum(['admin', 'finance', 'operator', 'analyst', 'developer', 'supply_manager', 'member']).default('member'),
+  roles: z.array(
+    z.enum(['admin', 'finance', 'operator', 'analyst', 'developer', 'supply_manager', 'member'])
+  ).min(1).default(['member']),
   groupIds: z.array(z.string().min(1)).default([]),
   employeeId: z.string().trim().min(1).max(100).optional(),
   customFields: z.record(z.unknown()).default({}),

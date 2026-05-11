@@ -6,9 +6,14 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/authenticate';
 import { apiLimiter } from '../middleware/rateLimiter';
 import { bulkInviteTenantMembersSchema, inviteTenantMemberSchema } from '../schemas/domain-member.schemas';
+import { listMembersQuerySchema } from '../schemas/domain-member-read.schemas';
 import { benefitsCatalogActivationSchema } from '../schemas/domain-service-activation.schemas';
 import { bulkInviteTenantMembersByEmail, inviteTenantMemberByEmail } from '../services/domain-member.service';
-import { listTenantMembersForManager, listTenantRolesForManager } from '../services/domain-member-read.service';
+import {
+  listTenantMembersPaginated,
+  listPendingInvitationsForTenant,
+  listTenantRolesForManager,
+} from '../services/domain-member-read.service';
 import { activateBenefitsCatalogForUser } from '../services/domain-service-activation.service';
 
 const router = Router();
@@ -29,12 +34,27 @@ router.post(
 );
 
 router.get(
+  '/members/pending-invitations',
+  authenticate,
+  apiLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await listPendingInvitationsForTenant(req.user!.sub);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
   '/members',
   authenticate,
   apiLimiter,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const result = await listTenantMembersForManager(req.user!.sub);
+      const query = listMembersQuerySchema.parse(req.query);
+      const result = await listTenantMembersPaginated(req.user!.sub, query);
       res.json(result);
     } catch (error) {
       next(error);
