@@ -16,12 +16,24 @@ import { signEmailVerificationToken, verifyEmailVerificationToken } from '../uti
 const router = Router();
 
 const REFRESH_COOKIE = 'nexus_refresh';
-const COOKIE_OPTS = (maxAge: number) => ({
+// 30-day refresh cookie — same regardless of rememberMe choice.
+const REFRESH_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Builds consistent cookie options for the httpOnly refresh token.
+ * SameSite=Lax is safe for same-registrable-domain cross-subdomain XHR
+ * (dashboard.nexus-payment.com → api.nexus-payment.com) without needing
+ * SameSite=None+Secure for same-site requests.
+ * COOKIE_DOMAIN (e.g. .nexus-payment.com) is set in production so the cookie
+ * is shared across all subdomains.
+ */
+const COOKIE_OPTS = () => ({
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
-  sameSite: 'strict' as const,
-  maxAge,
+  sameSite: 'lax' as const,
+  maxAge: REFRESH_MAX_AGE,
   path: '/',
+  ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
 });
 
 const authCodeSchema = z.object({
@@ -96,13 +108,12 @@ router.post(
   validate(loginSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { email, password, rememberMe } = req.body;
-      const result = await AuthService.login(email, password, rememberMe, {
+      const { email, password } = req.body;
+      const result = await AuthService.login(email, password, {
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip,
       });
-      const maxAge = result.ttlDays * 24 * 60 * 60 * 1000;
-      res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(maxAge));
+      res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS());
       res.json({ accessToken: result.accessToken });
     } catch (err) {
       next(err);
@@ -146,7 +157,7 @@ router.post(
         req.body.language ?? 'en',
         req.body.dashboardRedirect,
       );
-      res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(7 * 24 * 60 * 60 * 1000));
+      res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS());
       res.json({ accessToken: result.accessToken, dashboardCode, dashboardUrl, isNew: result.isNew ?? false });
     } catch (err) {
       next(err);
@@ -168,7 +179,7 @@ router.post(
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip,
       });
-      res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(7 * 24 * 60 * 60 * 1000));
+      res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS());
       res.json({ accessToken: result.accessToken, dashboardRedirect: result.dashboardRedirect });
     } catch (err) {
       next(err);
@@ -210,8 +221,7 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
       ipAddress: req.ip,
     });
     const user = await AuthService.getUserProfile(result.userId);
-    const maxAge = result.ttlDays * 24 * 60 * 60 * 1000;
-    res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(maxAge));
+    res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS());
     res.json({ accessToken: result.accessToken, user });
   } catch (err) {
     next(err);
@@ -220,10 +230,7 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
 
 router.post('/create-code', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const rawRememberMe = typeof req.body?.rememberMe === 'boolean' ? req.body.rememberMe : undefined;
-    const cookieRememberMe = await AuthService.getRefreshTokenRememberMe(req.cookies?.[REFRESH_COOKIE]);
-    const rememberMe = rawRememberMe ?? cookieRememberMe;
-    const code = AuthService.createDashboardAuthCode(req.user!.sub, rememberMe);
+    const code = AuthService.createDashboardAuthCode(req.user!.sub);
     res.json({ code });
   } catch (err) {
     next(err);
@@ -240,8 +247,7 @@ router.post(
         userAgent: req.headers['user-agent'],
         ipAddress: req.ip,
       });
-      const maxAge = result.ttlDays * 24 * 60 * 60 * 1000;
-      res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS(maxAge));
+      res.cookie(REFRESH_COOKIE, result.rawRefreshToken, COOKIE_OPTS());
       res.json({ accessToken: result.accessToken, user: result.user });
     } catch (err) {
       next(err);

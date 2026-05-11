@@ -24,6 +24,11 @@ const envSchema = z.object({
   ACCESS_TOKEN_SECRET: z.string().min(32),
   REFRESH_TOKEN_SECRET: z.string().min(32),
 
+  // Cookie domain — set to e.g. .nexus-payment.com in production so the
+  // httpOnly refresh cookie is shared across website, dashboard, and api subdomains.
+  // Leave unset in development.
+  COOKIE_DOMAIN: z.string().min(1).optional(),
+
   // Google OAuth — client ID required, secret optional (OAuth code flow disabled when absent)
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),

@@ -11,9 +11,10 @@ import { createError } from '../middleware/errorHandler';
 
 const googleClient = new OAuth2Client(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET);
 const DASHBOARD_AUTH_CODE_TTL_MS = 30 * 1000;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const REMEMBER_ME_THRESHOLD_MS = 14 * MS_PER_DAY;
-const dashboardAuthCodes = new Map<string, { userId: string; expiresAt: number; rememberMe: boolean }>();
+// When a racing second refresh call sees a revoked-but-replaced token, treat
+// it as a benign race if the replacement was issued within this window.
+const REPLACEMENT_GRACE_MS = 30_000;
+const dashboardAuthCodes = new Map<string, { userId: string; expiresAt: number }>();
 
 export interface AuthUserProfile {
   id: string;
@@ -44,30 +45,6 @@ function pruneExpiredDashboardAuthCodes(): void {
   for (const [code, entry] of dashboardAuthCodes.entries()) {
     if (entry.expiresAt <= now) dashboardAuthCodes.delete(code);
   }
-}
-
-/**
- * Detects whether a refresh-token row represents a remembered device.
- * Input: refresh token creation and expiry dates from the database.
- * Output: true when the original lifetime is closer to 30 days than 7 days.
- */
-function isRememberedRefreshToken(record: { createdAt: Date; expiresAt: Date }): boolean {
-  return record.expiresAt.getTime() - record.createdAt.getTime() > REMEMBER_ME_THRESHOLD_MS;
-}
-
-/**
- * Reads the remembered-device choice from an existing refresh cookie.
- * Input: raw refresh token from the httpOnly cookie.
- * Output: true when the stored token has a long remembered-device lifetime.
- */
-export async function getRefreshTokenRememberMe(rawToken: string | undefined): Promise<boolean> {
-  if (!rawToken) return false;
-
-  const tokenHash = hashToken(rawToken);
-  const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
-  if (!stored || stored.revokedAt || stored.expiresAt < new Date()) return false;
-
-  return isRememberedRefreshToken(stored);
 }
 
 /**
@@ -124,15 +101,14 @@ export async function getUserProfile(userId: string): Promise<AuthUserProfile | 
 
 /**
  * Creates a short-lived, single-use code for logging into the dashboard.
- * Input: authenticated website user ID and remembered-device choice.
+ * Input: authenticated website user ID.
  * Output: random URL-safe code that can be exchanged once within 30 seconds.
  */
-export function createDashboardAuthCode(userId: string, rememberMe = false): string {
+export function createDashboardAuthCode(userId: string): string {
   pruneExpiredDashboardAuthCodes();
   const code = generateToken(48);
   dashboardAuthCodes.set(code, {
     userId,
-    rememberMe,
     expiresAt: Date.now() + DASHBOARD_AUTH_CODE_TTL_MS,
   });
   return code;
@@ -160,7 +136,7 @@ export async function exchangeDashboardAuthCode(
   const profile = await getUserProfile(user.id);
   if (!profile) throw createError('User not found', 401);
 
-  const tokens = await issueTokens(user.id, user.email, user.role, entry.rememberMe, meta);
+  const tokens = await issueTokens(user.id, user.email, user.role, meta);
   return { ...tokens, user: profile };
 }
 
@@ -244,7 +220,7 @@ export async function verifyEmail(
   });
 
   return {
-    ...(await issueTokens(user.id, user.email, user.role, false, meta)),
+    ...(await issueTokens(user.id, user.email, user.role, meta)),
     dashboardRedirect: pending.dashboardRedirect,
   };
 }
@@ -280,7 +256,6 @@ export async function resendVerification(email: string) {
 export async function login(
   email: string,
   password: string,
-  rememberMe = false,
   meta: { userAgent?: string; ipAddress?: string } = {},
 ) {
   const normalizedEmail = email.toLowerCase().trim();
@@ -300,7 +275,7 @@ export async function login(
     data: { lastLoginAt: new Date() },
   });
 
-  return issueTokens(user.id, user.email, user.role, rememberMe, meta);
+  return issueTokens(user.id, user.email, user.role, meta);
 }
 
 export async function googleAuth(
@@ -345,7 +320,7 @@ export async function googleAuth(
     data: { lastLoginAt: new Date() },
   });
 
-  const tokens = await issueTokens(user.id, user.email, user.role, false, meta);
+  const tokens = await issueTokens(user.id, user.email, user.role, meta);
   return { ...tokens, isNew };
 }
 
@@ -407,37 +382,108 @@ export async function googleAuthFromAccessToken(
     data: { lastLoginAt: new Date() },
   });
 
-  const tokens = await issueTokens(user.id, user.email, user.role, false, meta);
+  const tokens = await issueTokens(user.id, user.email, user.role, meta);
   return { ...tokens, isNew };
 }
 
+/**
+ * Rotates a refresh token and returns new tokens.
+ * Handles benign concurrent-refresh races via a replacement chain + grace window:
+ * if two tabs call /refresh at the same time, the second call finds the first
+ * token already revoked but chains through replacedByTokenHash to issue fresh
+ * tokens rather than triggering a destructive bulk-revoke.
+ * Real token-reuse (outside the grace window or no replacement chain) still
+ * bulk-revokes all user tokens as a security response.
+ * Input: raw token from the httpOnly refresh cookie and request metadata.
+ * Output: fresh access token, new raw refresh token, and the user ID.
+ */
 export async function refreshTokens(
   rawToken: string,
   meta: { userAgent?: string; ipAddress?: string } = {},
 ) {
   const tokenHash = hashToken(rawToken);
-  const stored = await prisma.refreshToken.findUnique({ where: { tokenHash } });
 
-  if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
-    if (stored?.revokedAt) {
-      await prisma.refreshToken.updateMany({
-        where: { userId: stored.userId },
-        data: { revokedAt: new Date() },
+  return prisma.$transaction(async (tx) => {
+    const stored = await tx.refreshToken.findUnique({ where: { tokenHash } });
+
+    // Token not found or expired — straightforward rejection, no cascade.
+    if (!stored) throw createError('Invalid refresh token', 401);
+    if (stored.expiresAt < new Date()) throw createError('Refresh token expired', 401);
+
+    if (!stored.revokedAt) {
+      // Happy path: token is valid. Rotate it — mark revoked, point to new token.
+      const newRawToken = generateToken(64);
+      const newTokenHash = hashToken(newRawToken);
+
+      await tx.refreshToken.update({
+        where: { id: stored.id },
+        data: { revokedAt: new Date(), replacedByTokenHash: newTokenHash },
       });
+
+      const user = await tx.user.findUnique({ where: { id: stored.userId } });
+      if (!user) throw createError('User not found', 401);
+
+      const accessToken = signAccessToken({ sub: user.id, email: user.email, role: user.role });
+      await tx.refreshToken.create({
+        data: {
+          tokenHash: newTokenHash,
+          userId: user.id,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          userAgent: meta.userAgent,
+          ipAddress: meta.ipAddress,
+        },
+      });
+
+      return { accessToken, rawRefreshToken: newRawToken, userId: user.id };
     }
+
+    // Token is revoked. Check if this is a benign race via the replacement chain.
+    if (stored.replacedByTokenHash) {
+      const replacement = await tx.refreshToken.findUnique({
+        where: { tokenHash: stored.replacedByTokenHash },
+      });
+
+      const withinGrace =
+        replacement &&
+        !replacement.revokedAt &&
+        replacement.createdAt.getTime() > Date.now() - REPLACEMENT_GRACE_MS;
+
+      if (withinGrace && replacement) {
+        // Benign race: rotate the replacement and return fresh tokens.
+        const newRawToken = generateToken(64);
+        const newTokenHash = hashToken(newRawToken);
+
+        await tx.refreshToken.update({
+          where: { id: replacement.id },
+          data: { revokedAt: new Date(), replacedByTokenHash: newTokenHash },
+        });
+
+        const user = await tx.user.findUnique({ where: { id: stored.userId } });
+        if (!user) throw createError('User not found', 401);
+
+        const accessToken = signAccessToken({ sub: user.id, email: user.email, role: user.role });
+        await tx.refreshToken.create({
+          data: {
+            tokenHash: newTokenHash,
+            userId: user.id,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            userAgent: meta.userAgent,
+            ipAddress: meta.ipAddress,
+          },
+        });
+
+        return { accessToken, rawRefreshToken: newRawToken, userId: user.id };
+      }
+    }
+
+    // Revoked token outside the grace window — treat as token theft.
+    // Bulk-revoke all tokens for this user to force re-login everywhere.
+    await tx.refreshToken.updateMany({
+      where: { userId: stored.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
     throw createError('Invalid refresh token', 401);
-  }
-
-  await prisma.refreshToken.update({
-    where: { id: stored.id },
-    data: { revokedAt: new Date() },
   });
-
-  const user = await prisma.user.findUnique({ where: { id: stored.userId } });
-  if (!user) throw createError('User not found', 401);
-
-  const rememberMe = isRememberedRefreshToken(stored);
-  return issueTokens(user.id, user.email, user.role, rememberMe, meta);
 }
 
 export async function logout(rawToken: string) {
@@ -488,33 +534,30 @@ export async function resetPassword(rawToken: string, newPassword: string) {
   ]);
 }
 
+/**
+ * Issues a fresh access token and a 30-day refresh token for the given user.
+ * Input: user identity, role, and request metadata for audit logging.
+ * Output: signed access token, raw refresh token, and user ID.
+ */
 async function issueTokens(
   userId: string,
   email: string,
   role: string,
-  rememberMe: boolean,
   meta: { userAgent?: string; ipAddress?: string },
 ) {
   const accessToken = signAccessToken({ sub: userId, email, role });
   const rawRefresh = generateToken(64);
   const tokenHash = hashToken(rawRefresh);
 
-  const ttlDays = rememberMe ? 30 : 7;
-  const refreshRecord = await prisma.refreshToken.create({
+  await prisma.refreshToken.create({
     data: {
       tokenHash,
       userId,
-      expiresAt: new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       userAgent: meta.userAgent,
       ipAddress: meta.ipAddress,
     },
   });
 
-  return {
-    accessToken,
-    rawRefreshToken: rawRefresh,
-    refreshTokenId: refreshRecord.id,
-    ttlDays,
-    userId,
-  };
+  return { accessToken, rawRefreshToken: rawRefresh, userId };
 }
