@@ -40,17 +40,19 @@ router.get('/whatsapp', (req: Request, res: Response) => {
 // ─── POST /api/webhooks/whatsapp — Meta inbound messages ──
 
 router.post('/whatsapp', async (req: Request, res: Response) => {
-  // HMAC verification (raw body preserved by express.raw middleware)
+  // HMAC verification — fail closed: reject if secret not configured, signature missing, or mismatch.
   const signature = req.headers['x-hub-signature-256'] as string | undefined;
   const rawBody = req.body as Buffer;
 
-  if (signature && env.WHATSAPP_APP_SECRET) {
-    const expected = `sha256=${hmacSha256(env.WHATSAPP_APP_SECRET, rawBody)}`;
-    if (expected !== signature) {
-      console.warn('[Webhook] HMAC mismatch');
-      res.status(403).send('Invalid signature');
-      return;
-    }
+  if (!env.WHATSAPP_APP_SECRET || !signature) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+  const expected = `sha256=${hmacSha256(env.WHATSAPP_APP_SECRET, rawBody)}`;
+  if (expected !== signature) {
+    console.warn('[Webhook] WhatsApp HMAC mismatch');
+    res.status(403).send('Invalid signature');
+    return;
   }
 
   // Always respond 200 immediately (Meta requires <5s)
