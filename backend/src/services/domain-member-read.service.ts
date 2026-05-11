@@ -154,33 +154,6 @@ export async function listTenantMembersPaginated(
     pipeline.push({ $match: { 'roleRecords.role': query.role } });
   }
 
-  // Stage 4.5: join latest invitation so we can filter by acceptance state.
-  pipeline.push({
-    $lookup: {
-      from: DOMAIN_COLLECTIONS.tenantMemberInvitations,
-      let: { memberId: '$tenantMemberId' },
-      pipeline: [
-        { $match: { $expr: { $eq: ['$tenantMemberId', '$$memberId'] } } },
-        { $sort: { createdAt: -1 } },
-        { $limit: 1 },
-        { $project: { status: 1, expiresAt: 1, _id: 0 } },
-      ],
-      as: 'latestInvitation',
-    },
-  });
-
-  // Stage 4.6: exclude members whose invite is still pending or expired.
-  // Members with no invitation record at all (e.g. the tenant admin created
-  // during workspace setup) are always included.
-  pipeline.push({
-    $match: {
-      $or: [
-        { latestInvitation: { $size: 0 } },
-        { 'latestInvitation.0.status': 'accepted' },
-      ],
-    },
-  });
-
   // Stage 5: if search is active, filter on email or displayName.
   if (query.search) {
     const safePattern = escapeRegex(query.search);
@@ -214,7 +187,20 @@ export async function listTenantMembersPaginated(
             as: 'groupAssignments',
           },
         },
-        // latestInvitation is already joined from Stage 4.5 above.
+        // Fetch the most recent invitation to show invitation status.
+        {
+          $lookup: {
+            from: DOMAIN_COLLECTIONS.tenantMemberInvitations,
+            let: { memberId: '$tenantMemberId' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$tenantMemberId', '$$memberId'] } } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
+              { $project: { status: 1, expiresAt: 1, _id: 0 } },
+            ],
+            as: 'latestInvitation',
+          },
+        },
       ],
       total: [{ $count: 'n' }],
     },
