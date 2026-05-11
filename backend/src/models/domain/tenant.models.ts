@@ -6,7 +6,7 @@ import type { Collection, Db, ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { DOMAIN_COLLECTIONS } from './collections';
 
-export const TENANT_CONTACT_STATUSES = ['active', 'inactive', 'pending'] as const;
+export const TENANT_CONTACT_STATUSES = ['active', 'inactive', 'pending', 'expired'] as const;
 export type TenantContactStatus = typeof TENANT_CONTACT_STATUSES[number];
 
 export const TENANT_STATUSES = ['build_mode', 'active', 'suspended', 'archived'] as const;

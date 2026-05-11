@@ -20,12 +20,12 @@ export type ListContactsQuery = z.infer<typeof listContactsQuerySchema>;
 
 /**
  * Validates POST /api/v1/tenant/contacts body.
- * Email is required; all other fields are optional.
+ * Status is not accepted — all new contacts start as inactive.
+ * Status advances automatically through the invite lifecycle.
  */
 export const createContactSchema = z.object({
   email: z.string().email().max(255),
   displayName: z.string().trim().min(1).max(255).default(''),
-  status: z.enum(TENANT_CONTACT_STATUSES).default('active'),
   address: z.string().trim().max(500).optional(),
 });
 
@@ -49,12 +49,11 @@ export type UpdateContactInput = z.infer<typeof updateContactSchema>;
 
 /**
  * Validates a single row in the bulk CSV import payload.
- * Email is required; displayName, status, and address are optional.
+ * Status is ignored — all imported contacts start as inactive.
  */
 const importContactRowSchema = z.object({
   email: z.string().email().max(255),
   displayName: z.string().trim().max(255).optional(),
-  status: z.enum(TENANT_CONTACT_STATUSES).optional(),
   address: z.string().trim().max(500).optional(),
 });
 

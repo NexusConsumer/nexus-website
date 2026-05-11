@@ -133,7 +133,7 @@ export async function createTenantContact(
       },
       $set: {
         displayName: data.displayName,
-        status: data.status,
+        status: 'inactive', // all contacts start inactive; status advances via invite lifecycle
         ...(data.address !== undefined && { address: data.address }),
         updatedAt: now,
       },
@@ -210,7 +210,7 @@ export async function importTenantContacts(
           },
           $set: {
             displayName: row.displayName ?? '',
-            status: row.status ?? 'active',
+            status: 'inactive', // all imported contacts start inactive
             ...(row.address !== undefined && { address: row.address }),
             updatedAt: now,
           },
