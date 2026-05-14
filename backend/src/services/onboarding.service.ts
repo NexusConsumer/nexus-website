@@ -16,6 +16,7 @@ import {
   getOnboardingCollections,
 } from '../models/onboarding.models';
 import { getIdentityDomainCollections, getTenantDomainCollections } from '../models/domain';
+import { DEFAULT_MEMBER_SERVICES } from '../models/domain/tenant.models';
 import { BusinessSetupInput, SkipWorkspaceInput, WorkspaceSetupInput } from '../schemas/onboarding.schemas';
 import { getDomainAuthorizationContext, getPrimaryTenantRole, hasDomainPermission } from './domain-authorization.service';
 import { syncDomainIdentityForLoginUser } from './domain-identity.service';
@@ -56,6 +57,11 @@ export interface DashboardAuthorization {
   catalogServiceActive: boolean;
   /** True when this user holds the 'member' role AND the catalog is not inactive. */
   canPurchaseCatalog: boolean;
+  /**
+   * Services this member was granted at invite time (e.g. ['benefits_catalog']).
+   * Empty array for platform admins or users with no domain tenant membership.
+   */
+  memberServices: string[];
 }
 
 export interface TenantSeats {
@@ -155,6 +161,8 @@ function getDashboardAuthorization(
     catalogMode: 'inactive',
     catalogServiceActive: false,
     canPurchaseCatalog: false,
+    // memberServices is overwritten in getMe() after the domain TenantMember document is fetched.
+    memberServices: [],
   };
 }
 
@@ -339,30 +347,47 @@ export async function getMe(userId: string): Promise<MeResponse> {
   const tenantCollections = getTenantDomainCollections(db);
   const identityCollections = getIdentityDomainCollections(db);
 
-  // Look up the domain tenant's live status (separate from the legacy onboarding tenant).
-  let domainTenantStatus: string | null = null;
-  if (context.tenantId) {
-    const domainTenant = await tenantCollections.domainTenants.findOne(
-      { tenantId: context.tenantId },
-      { projection: { status: 1 } },
-    );
-    domainTenantStatus = domainTenant?.status ?? null;
-  }
+  // Run all three tenant-scoped lookups in parallel to avoid serial latency on
+  // every /api/me call. domainTenantStatus feeds resolveCatalogMode, which is
+  // called after Promise.all resolves.
+  const [domainTenantDoc, userRoles, domainMemberDoc] = await Promise.all([
+    // Look up the domain tenant's live status (separate from the legacy onboarding tenant).
+    context.tenantId
+      ? tenantCollections.domainTenants.findOne(
+          { tenantId: context.tenantId },
+          { projection: { status: 1 } },
+        )
+      : Promise.resolve(null),
+    // Check if this user holds the 'member' role in the tenant's role assignments.
+    // Only members are allowed to purchase from the catalog.
+    context.tenantId
+      ? identityCollections.tenantUserRoles
+          .find({ nexusIdentityId: domainIdentity.nexusIdentityId, tenantId: context.tenantId })
+          .toArray()
+      : Promise.resolve([]),
+    // Fetch the domain TenantMember document to read the services field.
+    // This document is authoritative for which services this specific member was
+    // granted at invite time (e.g. ['benefits_catalog']). Defaults to
+    // DEFAULT_MEMBER_SERVICES when the member doc has no services field (pre-Task-08
+    // records) and to [] when the user has no domain tenant membership at all.
+    context.tenantId && domainIdentity.nexusIdentityId
+      ? tenantCollections.tenantMembers.findOne(
+          { nexusIdentityId: domainIdentity.nexusIdentityId, tenantId: context.tenantId },
+          { projection: { services: 1 } },
+        )
+      : Promise.resolve(null),
+  ]);
+
+  const domainTenantStatus: string | null = domainTenantDoc?.status ?? null;
+  const hasMemberRole = userRoles.some((r) => r.role === 'member');
+  const memberServices: string[] =
+    domainMemberDoc != null ? (domainMemberDoc.services ?? [...DEFAULT_MEMBER_SERVICES]) : [];
 
   const catalogMode = await resolveCatalogMode(
     context.tenantId ?? null,
     domainTenantStatus,
     tenantCollections,
   );
-
-  // Check if this user holds the 'member' role in the tenant's role assignments.
-  // Only members are allowed to purchase from the catalog.
-  const userRoles = context.tenantId
-    ? await identityCollections.tenantUserRoles
-        .find({ nexusIdentityId: domainIdentity.nexusIdentityId, tenantId: context.tenantId })
-        .toArray()
-    : [];
-  const hasMemberRole = userRoles.some((r) => r.role === 'member');
 
   const baseAuthorization = getDashboardAuthorization(user.email, context, domainAuthorization.permissions);
 
@@ -385,6 +410,7 @@ export async function getMe(userId: string): Promise<MeResponse> {
       catalogMode,
       catalogServiceActive: catalogMode !== 'inactive',
       canPurchaseCatalog: hasMemberRole && catalogMode !== 'inactive',
+      memberServices,
     },
     onboarding: status.onboarding,
   };

@@ -6,6 +6,13 @@ import type { Collection, Db, ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { DOMAIN_COLLECTIONS } from './collections';
 
+/**
+ * Default services granted to new members when no explicit services list is provided.
+ * Used as the fallback in TenantMember and TenantMemberInvitation schemas and
+ * as the runtime default when reading pre-Task-08 member documents.
+ */
+export const DEFAULT_MEMBER_SERVICES = ['benefits_catalog'] as const;
+
 export const TENANT_CONTACT_STATUSES = ['active', 'inactive', 'pending', 'expired'] as const;
 export type TenantContactStatus = typeof TENANT_CONTACT_STATUSES[number];
 
@@ -102,9 +109,9 @@ export const tenantMemberDomainSchema = z.object({
   customFields: z.record(z.unknown()).default({}),
   /**
    * Services this member was granted access to at invite time.
-   * Defaults to benefits_catalog for backwards compatibility with pre-Task-08 records.
+   * Defaults to DEFAULT_MEMBER_SERVICES for backwards compatibility with pre-Task-08 records.
    */
-  services: z.array(z.string()).default(['benefits_catalog']),
+  services: z.array(z.string()).default([...DEFAULT_MEMBER_SERVICES]),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -139,9 +146,9 @@ export const tenantMemberInvitationSchema = z.object({
   /**
    * Services explicitly granted when this invitation was created.
    * Used to determine which features the member can access after accepting.
-   * Defaults to benefits_catalog for backwards compatibility.
+   * Defaults to DEFAULT_MEMBER_SERVICES for backwards compatibility.
    */
-  services: z.array(z.string()).default(['benefits_catalog']),
+  services: z.array(z.string()).default([...DEFAULT_MEMBER_SERVICES]),
   tokenHash: z.string().min(64).max(64),
   status: z.enum(TENANT_MEMBER_INVITATION_STATUSES),
   invitedByIdentityId: z.string().min(1),
