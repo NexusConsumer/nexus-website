@@ -31,7 +31,7 @@ import {
   adoptOffer,
   excludeOffer,
 } from '../services/catalog.service';
-import { OFFER_CATEGORIES, OFFER_VISIBILITY } from '../models/domain/supply.models';
+import { OFFER_CATEGORIES, OFFER_VISIBILITY, OFFER_EXECUTION_TYPES } from '../models/domain/supply.models';
 import type { NexusOffer } from '../models/domain/supply.models';
 import { syncDomainIdentityForLoginUser } from '../services/domain-identity.service';
 import { getDomainAuthorizationContext, hasDomainPermission } from '../services/domain-authorization.service';
@@ -61,6 +61,8 @@ const createOfferSchema = z.object({
   raw_cost: z.coerce.number().positive(),
   market_price: z.coerce.number().positive().optional(),
   visibility: z.enum(OFFER_VISIBILITY).default('ecosystem'),
+  executionType: z.enum(OFFER_EXECUTION_TYPES).default('voucher'),
+  stockLimit: z.coerce.number().int().positive().nullable().optional().default(null),
 });
 
 /**
@@ -73,6 +75,8 @@ const updateOfferSchema = z.object({
   raw_cost: z.coerce.number().positive().optional(),
   market_price: z.coerce.number().positive().optional(),
   status: z.enum(['active', 'inactive']).optional(),
+  executionType: z.enum(OFFER_EXECUTION_TYPES).optional(),
+  stockLimit: z.coerce.number().int().positive().nullable().optional(),
 });
 
 // ─── Utility ─────────────────────────────────────────────────────────────────

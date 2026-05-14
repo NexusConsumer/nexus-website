@@ -19,6 +19,7 @@ import {
   type NexusOffer,
   type OfferCategory,
   type OfferVisibility,
+  type OfferExecutionType,
 } from '../models/domain/supply.models';
 import { uploadOfferImage, defaultOfferImageUrl, deleteOfferImage } from '../utils/cloudinary';
 
@@ -64,6 +65,10 @@ export interface CreateOfferInput {
   market_price?: number;
   /** Controls which tenants can see the offer in the platform catalog. */
   visibility: OfferVisibility;
+  /** How the offer is fulfilled/redeemed. Defaults to 'voucher' when omitted. */
+  executionType?: OfferExecutionType;
+  /** Maximum total units available across all tenants. null = unlimited. */
+  stockLimit?: number | null;
   /** Raw image bytes to upload to Cloudinary. Optional - falls back to placeholder. */
   imageBuffer?: Buffer;
   /** Original filename used to derive a readable Cloudinary public_id. */
@@ -90,6 +95,10 @@ export interface UpdateOfferInput {
   market_price?: number;
   /** Lifecycle status change. */
   status?: 'active' | 'inactive';
+  /** Updated fulfillment/redemption type. */
+  executionType?: OfferExecutionType;
+  /** Updated stock cap. Set to null to make unlimited; omit to leave unchanged. */
+  stockLimit?: number | null;
   /** Replacement image bytes to upload to Cloudinary. */
   imageBuffer?: Buffer;
   /** Filename for the replacement image. */
@@ -136,6 +145,9 @@ export async function createOffer(input: CreateOfferInput): Promise<NexusOffer> 
     market_price: input.market_price,
     status: 'active',
     visibility: input.visibility,
+    executionType: input.executionType ?? 'voucher',
+    stockLimit: input.stockLimit ?? null,
+    stockUsed: 0,
     createdByTenantId: input.createdByTenantId,
     createdByIdentityId: input.createdByIdentityId,
     // For tenant_only offers, restrict visibility to the creating tenant.
@@ -192,6 +204,8 @@ export async function updateOffer(
     }),
     ...(input.market_price !== undefined && { market_price: input.market_price }),
     ...(input.status !== undefined && { status: input.status }),
+    ...(input.executionType !== undefined && { executionType: input.executionType }),
+    ...(input.stockLimit !== undefined && { stockLimit: input.stockLimit }),
     ...(imageUrl !== undefined && { imageUrl }),
   };
 
@@ -302,4 +316,49 @@ export async function deleteOffer(
 
   // Cascade - remove every tenant's adoption record for this offer immediately.
   await tenantOfferConfigs.deleteMany({ offerId });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 hook - stock management
+// ---------------------------------------------------------------------------
+
+/**
+ * Atomically increments stockUsed for an offer after a confirmed purchase.
+ *
+ * Uses findOneAndUpdate with a guard condition so the increment only
+ * happens when the offer is still active and has stock remaining.
+ * Unlimited offers (stockLimit = null) are always incremented.
+ *
+ * Called by Phase 4 purchase service after payment confirmation.
+ *
+ * Input:  offerId - UUID of the purchased offer.
+ * Output: Promise resolving to the updated stockUsed count.
+ * Throws: Error with .status = 409 when the offer is sold out, not active,
+ *         or not found.
+ */
+export async function decrementStock(offerId: string): Promise<number> {
+  const db = await getMongoDb();
+  const { nexusOffers } = getSupplyDomainCollections(db);
+
+  // Guard: allow increment only when there is remaining stock or no limit.
+  const result = await nexusOffers.findOneAndUpdate(
+    {
+      offerId,
+      status: 'active',
+      $or: [
+        { stockLimit: null },
+        { $expr: { $lt: ['$stockUsed', '$stockLimit'] } },
+      ],
+    },
+    { $inc: { stockUsed: 1 }, $set: { updatedAt: new Date() } },
+    { returnDocument: 'after' },
+  );
+
+  if (!result) {
+    throw Object.assign(
+      new Error('Offer is sold out or not available'),
+      { status: 409 },
+    );
+  }
+  return result.stockUsed;
 }

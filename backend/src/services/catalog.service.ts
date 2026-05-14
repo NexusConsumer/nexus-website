@@ -54,6 +54,14 @@ export interface CatalogItem {
   adoptedAt?: Date;
   /** TenantId of the supply manager who created the offer. */
   createdByTenantId: string;
+  /** How the offer is fulfilled/redeemed (voucher, coupon, gift_card, product, service). */
+  executionType: string;
+  /** Maximum total units available (null = unlimited). */
+  stockLimit: number | null;
+  /** Units still available for purchase (null when stockLimit is null). */
+  stockAvailable: number | null;
+  /** True when all units have been claimed. Always false for unlimited offers. */
+  isSoldOut: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +94,15 @@ function toItem(offer: NexusOffer, config: TenantOfferConfig | undefined): Catal
     isAdopted: config?.adoptionStatus === 'active',
     adoptedAt: config?.adoptedAt,
     createdByTenantId: offer.createdByTenantId,
+    executionType: offer.executionType ?? 'voucher',
+    stockLimit: offer.stockLimit ?? null,
+    // stockAvailable is null for unlimited offers; otherwise remaining units.
+    stockAvailable: offer.stockLimit === null
+      ? null
+      : Math.max(0, offer.stockLimit - (offer.stockUsed ?? 0)),
+    // isSoldOut is only true when a cap exists and has been fully consumed.
+    isSoldOut: offer.stockLimit !== null
+      && (offer.stockUsed ?? 0) >= offer.stockLimit,
   };
 }
 
@@ -174,6 +191,16 @@ export async function getMemberCatalogView(
   const offerFilter: Record<string, unknown> = {
     offerId: { $in: adoptedConfigs.map((c) => c.offerId) },
     status: 'active',
+    // Exclude offers that have hit their stock cap.
+    // Unlimited offers (stockLimit: null) always pass this guard.
+    $and: [
+      {
+        $or: [
+          { stockLimit: null },
+          { $expr: { $lt: ['$stockUsed', '$stockLimit'] } },
+        ],
+      },
+    ],
   };
   if (category && category !== 'all') {
     offerFilter['category'] = category;

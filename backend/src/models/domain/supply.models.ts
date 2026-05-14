@@ -16,10 +16,27 @@ export const OFFER_CATEGORIES = [
 export const OFFER_ADOPTION_STATUSES = ['active', 'excluded'] as const;
 export const OFFER_VISIBILITY = ['ecosystem', 'tenant_only'] as const;
 
+/**
+ * How the offer is delivered/redeemed by the member.
+ * voucher   - single-use code sent to member.
+ * coupon    - discount code applied at checkout.
+ * gift_card - prepaid card balance.
+ * product   - physical or digital product shipped/delivered.
+ * service   - appointment or service booking.
+ */
+export const OFFER_EXECUTION_TYPES = [
+  'voucher',
+  'coupon',
+  'gift_card',
+  'product',
+  'service',
+] as const;
+
 export type OfferStatus = typeof OFFER_STATUSES[number];
 export type OfferCategory = typeof OFFER_CATEGORIES[number];
 export type OfferAdoptionStatus = typeof OFFER_ADOPTION_STATUSES[number];
 export type OfferVisibility = typeof OFFER_VISIBILITY[number];
+export type OfferExecutionType = typeof OFFER_EXECUTION_TYPES[number];
 
 /**
  * Platform-level catalog item created by tenant admins or supply managers.
@@ -37,6 +54,12 @@ export const nexusOfferSchema = z.object({
   market_price: z.number().positive().optional(),
   status: z.enum(OFFER_STATUSES).default('active'),
   visibility: z.enum(OFFER_VISIBILITY).default('ecosystem'),
+  /** How the offer is fulfilled/redeemed. Defaults to voucher. */
+  executionType: z.enum(OFFER_EXECUTION_TYPES).default('voucher'),
+  /** Maximum number of units available across all tenants. null = unlimited. */
+  stockLimit: z.number().int().positive().nullable().default(null),
+  /** Running count of units that have been purchased/redeemed. */
+  stockUsed: z.number().int().nonnegative().default(0),
   createdByTenantId: z.string().min(1),
   createdByIdentityId: z.string().min(1),
   invitedByTenantId: z.string().min(1).optional(),
