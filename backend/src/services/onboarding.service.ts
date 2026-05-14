@@ -50,6 +50,12 @@ export interface DashboardAuthorization {
   canManageMembers: boolean;
   /** True when the user can create or manage supply catalog offers. */
   canManageSupply: boolean;
+  /** Catalog activation mode derived from TenantServiceActivation + Tenant.status. */
+  catalogMode: 'inactive' | 'sandbox' | 'live';
+  /** True when the benefits_catalog service is active for this tenant. */
+  catalogServiceActive: boolean;
+  /** True when this user holds the 'member' role AND the catalog is not inactive. */
+  canPurchaseCatalog: boolean;
 }
 
 export interface TenantSeats {
@@ -97,9 +103,34 @@ async function getPrismaUser(userId: string): Promise<{ id: string; email: strin
 }
 
 /**
+ * Derives the catalog operating mode for a tenant from service activation state
+ * and the tenant's live status.
+ * Input: tenantId (null when user has no tenant), tenant domain status from Mongo,
+ *        and the typed TenantDomainCollections returned by getTenantDomainCollections.
+ * Output: 'inactive' when the service is not activated; 'sandbox' when active but
+ *         the tenant is not yet live; 'live' when active and tenant.status === 'active'.
+ */
+async function resolveCatalogMode(
+  tenantId: string | null,
+  tenantStatus: string | null,
+  tenantCollections: ReturnType<typeof getTenantDomainCollections>,
+): Promise<'inactive' | 'sandbox' | 'live'> {
+  if (!tenantId) return 'inactive';
+  const activation = await tenantCollections.tenantServiceActivations.findOne({
+    tenantId,
+    serviceKey: 'benefits_catalog',
+    status: 'active',
+  });
+  if (!activation) return 'inactive';
+  return tenantStatus === 'active' ? 'live' : 'sandbox';
+}
+
+/**
  * Builds dashboard authorization from trusted backend identity and context.
- * Input: current Prisma email and Mongo-derived user context.
- * Output: flags the dashboard can use for UX gating without exposing raw admin config.
+ * Catalog fields (catalogMode, catalogServiceActive, canPurchaseCatalog) are
+ * resolved asynchronously in getMe() and merged into the returned object there.
+ * Input: current Prisma email, Mongo-derived user context, and resolved permissions.
+ * Output: base authorization flags; catalog fields default to inactive until merged.
  */
 function getDashboardAuthorization(
   email: string,
@@ -120,6 +151,10 @@ function getDashboardAuthorization(
     canManageMembers: permissions.includes('team.invite_member') && permissions.includes('roles.assign'),
     // Platform admins can always manage supply; tenant supply_managers get it via domain permissions.
     canManageSupply: adminByEmail || permissions.includes('supply.ingest') || permissions.includes('supply.manage_offers'),
+    // Catalog fields are overwritten in getMe() after async resolution.
+    catalogMode: 'inactive',
+    catalogServiceActive: false,
+    canPurchaseCatalog: false,
   };
 }
 
@@ -297,6 +332,40 @@ export async function getMe(userId: string): Promise<MeResponse> {
     planSummary = await getTenantPlanSummary(context.tenantId).catch(() => undefined);
   }
 
+  // Resolve catalog mode and member-purchase eligibility.
+  // These require async DB lookups so they are computed here and merged into
+  // the authorization object rather than inside the sync getDashboardAuthorization helper.
+  const db = await getMongoDb();
+  const tenantCollections = getTenantDomainCollections(db);
+  const identityCollections = getIdentityDomainCollections(db);
+
+  // Look up the domain tenant's live status (separate from the legacy onboarding tenant).
+  let domainTenantStatus: string | null = null;
+  if (context.tenantId) {
+    const domainTenant = await tenantCollections.domainTenants.findOne(
+      { tenantId: context.tenantId },
+      { projection: { status: 1 } },
+    );
+    domainTenantStatus = domainTenant?.status ?? null;
+  }
+
+  const catalogMode = await resolveCatalogMode(
+    context.tenantId ?? null,
+    domainTenantStatus,
+    tenantCollections,
+  );
+
+  // Check if this user holds the 'member' role in the tenant's role assignments.
+  // Only members are allowed to purchase from the catalog.
+  const userRoles = context.tenantId
+    ? await identityCollections.tenantUserRoles
+        .find({ nexusIdentityId: domainIdentity.nexusIdentityId, tenantId: context.tenantId })
+        .toArray()
+    : [];
+  const hasMemberRole = userRoles.some((r) => r.role === 'member');
+
+  const baseAuthorization = getDashboardAuthorization(user.email, context, domainAuthorization.permissions);
+
   return {
     user: { id: user.id, email: user.email, name: user.fullName },
     context: {
@@ -311,7 +380,12 @@ export async function getMe(userId: string): Promise<MeResponse> {
         },
       }),
     },
-    authorization: getDashboardAuthorization(user.email, context, domainAuthorization.permissions),
+    authorization: {
+      ...baseAuthorization,
+      catalogMode,
+      catalogServiceActive: catalogMode !== 'inactive',
+      canPurchaseCatalog: hasMemberRole && catalogMode !== 'inactive',
+    },
     onboarding: status.onboarding,
   };
 }
@@ -684,5 +758,48 @@ export async function clearWizardDraft(userId: string): Promise<void> {
   await collections.onboardingStates.updateOne(
     { userId },
     { $unset: { wizardDraft: '' }, $set: { updatedAt: new Date() } },
+  );
+}
+
+/**
+ * Triggers the Go Live transition for a tenant's catalog service.
+ * Transitions Tenant.status from build_mode to 'active' and
+ * TenantOnboardingState.state to 'active', making the catalog visible
+ * to purchasing members.
+ *
+ * Precondition: the tenant's onboarding state must be one of
+ * 'build_mode', 'wizard_completed', or 'go_live_pending' to ensure
+ * business setup is sufficiently complete before going live.
+ *
+ * Input:  tenantId - the domain tenant identifier string.
+ * Output: resolves when both domain records are updated.
+ * Throws: Error (status 400) when business setup is not in a ready state.
+ */
+export async function triggerGoLive(tenantId: string): Promise<void> {
+  const db = await getMongoDb();
+  const collections = getTenantDomainCollections(db);
+
+  const onboardingState = await collections.tenantOnboardingStates.findOne({ tenantId });
+  const readyStates: string[] = ['build_mode', 'wizard_completed', 'go_live_pending'];
+
+  if (!onboardingState || !readyStates.includes(onboardingState.state)) {
+    throw Object.assign(
+      new Error('Business setup must be completed before going live'),
+      { status: 400 },
+    );
+  }
+
+  const now = new Date();
+
+  // Update both domain records atomically from the backend's perspective.
+  // The Tenant status drives catalogMode resolution in getMe(); the onboarding
+  // state drives wizard/setup gating on the dashboard.
+  await collections.domainTenants.updateOne(
+    { tenantId },
+    { $set: { status: 'active' as const, updatedAt: now } },
+  );
+  await collections.tenantOnboardingStates.updateOne(
+    { tenantId },
+    { $set: { state: 'active' as const, updatedAt: now } },
   );
 }

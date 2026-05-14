@@ -150,7 +150,7 @@ export async function uploadOfferImage(buffer: Buffer, filename: string): Promis
  * Output: absolute HTTPS URL string pointing to the default offer image.
  */
 export function defaultOfferImageUrl(): string {
-  return 'https://res.cloudinary.com/nexus/image/upload/v1/nexus/offers/default-offer.png';
+  return 'https://res.cloudinary.com/dyqjvjdlq/image/upload/v1778753218/9c6425d4-63bb-48ef-9a95-f6c48911e8ee_mj6eqm.png';
 }
 
 /**

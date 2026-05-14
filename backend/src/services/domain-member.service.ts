@@ -247,6 +247,8 @@ export async function inviteTenantMemberByEmail(
     employeeId: input.employeeId,
     requireAdminApproval: false,
     customFields: input.customFields,
+    // Copy service grants from the invite input so members only access features they were invited with.
+    services: input.services ?? ['benefits_catalog'],
     createdAt: now,
     updatedAt: now,
   });
@@ -309,6 +311,9 @@ export async function inviteTenantMemberByEmail(
     normalizedEmail: invitedIdentity.normalizedEmail,
     roles: uniqueRoles,
     groupIds,
+    // Persist the service grants so the invitation record is self-contained and
+    // the accept flow can read them without re-reading the member document.
+    services: input.services ?? ['benefits_catalog'],
     tokenHash: hashToken(rawToken),
     status: 'pending',
     invitedByIdentityId: access.managerIdentityId,

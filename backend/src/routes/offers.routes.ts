@@ -17,6 +17,9 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import multer from 'multer';
 import { z } from 'zod';
 import { authenticate } from '../middleware/authenticate';
+import { getMongoDb } from '../config/mongo';
+import { prisma } from '../config/database';
+import { getTenantDomainCollections } from '../models/domain';
 import {
   resolveTenantContext,
   resolveTenantContextWithPermission,
@@ -30,6 +33,8 @@ import {
 } from '../services/catalog.service';
 import { OFFER_CATEGORIES, OFFER_VISIBILITY } from '../models/domain/supply.models';
 import type { NexusOffer } from '../models/domain/supply.models';
+import { syncDomainIdentityForLoginUser } from '../services/domain-identity.service';
+import { getDomainAuthorizationContext, hasDomainPermission } from '../services/domain-authorization.service';
 
 const router = Router();
 
@@ -364,6 +369,9 @@ router.get(
  * Returns the member-facing benefits catalog for a given tenant.
  * Only shows offers that have been actively adopted by that tenant.
  *
+ * Gate: the benefits_catalog service must be active for the requested tenant.
+ * Returns 403 when the service has not been activated yet.
+ *
  * Input: tenantId as path param (used as the catalog scope, not auth context).
  * Output: array of adopted CatalogItem entries, sorted newest-first.
  */
@@ -372,10 +380,57 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      // Use the URL param tenantId as the catalog scope for member-facing view.
+      const { tenantId } = req.params;
+
+      // Guard: benefits_catalog service must be active for this tenant before
+      // exposing the member-facing catalog. This prevents tenants that have not
+      // activated the service from having their catalog accessed.
+      const db = await getMongoDb();
+      const tenantCollections = getTenantDomainCollections(db);
+      const serviceActive = await tenantCollections.tenantServiceActivations.findOne({
+        tenantId,
+        serviceKey: 'benefits_catalog',
+        status: 'active',
+      });
+      if (!serviceActive) {
+        res.status(403).json({ error: 'Benefits Catalog service is not activated' });
+        return;
+      }
+
+      // Guard: member-level access check.
+      // Admins with catalog.view permission bypass this check — they manage the catalog.
+      // Regular members must have been explicitly invited with benefits_catalog in their
+      // services array to browse and purchase offers.
+      const loginUser = await prisma.user.findUnique({
+        where: { id: req.user!.sub },
+        select: { id: true, email: true, fullName: true, provider: true },
+      });
+      if (!loginUser) {
+        res.status(401).json({ error: 'User not found' });
+        return;
+      }
+      const domainIdentity = await syncDomainIdentityForLoginUser(loginUser);
+      const authCtx = await getDomainAuthorizationContext(domainIdentity.nexusIdentityId, tenantId);
+      const isAdminOrManager = hasDomainPermission(authCtx, 'catalog.view');
+
+      if (!isAdminOrManager) {
+        // Regular member: verify they were invited with catalog access.
+        const memberDoc = await tenantCollections.tenantMembers.findOne({
+          tenantId,
+          nexusIdentityId: domainIdentity.nexusIdentityId,
+        });
+        const memberHasCatalog =
+          Array.isArray(memberDoc?.services) &&
+          memberDoc.services.includes('benefits_catalog');
+        if (!memberHasCatalog) {
+          res.status(403).json({ error: 'You do not have access to the Benefits Catalog' });
+          return;
+        }
+      }
+
       const category =
         typeof req.query.category === 'string' ? req.query.category : undefined;
-      const items = await getMemberCatalogView(req.params.tenantId, category);
+      const items = await getMemberCatalogView(tenantId, category);
       res.json({ offers: items });
     } catch (err) {
       next(err);

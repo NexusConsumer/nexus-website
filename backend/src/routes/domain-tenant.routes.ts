@@ -15,6 +15,8 @@ import {
   listTenantRolesForManager,
 } from '../services/domain-member-read.service';
 import { activateBenefitsCatalogForUser } from '../services/domain-service-activation.service';
+import { triggerGoLive } from '../services/onboarding.service';
+import { resolveTenantContextWithPermission } from '../utils/resolve-tenant-context';
 
 const router = Router();
 
@@ -106,6 +108,39 @@ router.post(
       res.status(207).json(result);
     } catch (error) {
       next(error);
+    }
+  },
+);
+
+/**
+ * POST /api/v1/tenant/go-live
+ *
+ * Transitions the authenticated user's tenant catalog from sandbox mode to live.
+ * Sets Tenant.status = 'active' and TenantOnboardingState.state = 'active'.
+ *
+ * Requires the workspace.trigger_go_live permission (held by tenant admin role).
+ * Tenant context is always derived from the server-side MongoDB membership record
+ * and never accepted from the request body or URL params.
+ *
+ * Returns: { success: true, catalogMode: 'live' } on success.
+ * Errors:  400 when business setup is not in a ready state before going live.
+ *          401 when the request is not authenticated.
+ *          403 when the user lacks the workspace.trigger_go_live permission.
+ */
+router.post(
+  '/go-live',
+  authenticate,
+  apiLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      // Resolve tenantId from server-side MongoDB membership + enforce permission.
+      // resolveTenantContextWithPermission is required here because the tenantId is
+      // not in the URL, so requireDomainPermission middleware would find no tenant scope.
+      const { tenantId } = await resolveTenantContextWithPermission(req, 'workspace.trigger_go_live');
+      await triggerGoLive(tenantId);
+      res.json({ success: true, catalogMode: 'live' });
+    } catch (err) {
+      next(err);
     }
   },
 );

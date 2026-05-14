@@ -100,6 +100,11 @@ export const tenantMemberDomainSchema = z.object({
   employmentStartDate: z.date().optional(),
   requireAdminApproval: z.boolean().default(false),
   customFields: z.record(z.unknown()).default({}),
+  /**
+   * Services this member was granted access to at invite time.
+   * Defaults to benefits_catalog for backwards compatibility with pre-Task-08 records.
+   */
+  services: z.array(z.string()).default(['benefits_catalog']),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -131,6 +136,12 @@ export const tenantMemberInvitationSchema = z.object({
   normalizedEmail: z.string().email(),
   roles: z.array(z.string().min(1).max(100)).min(1),
   groupIds: z.array(z.string().min(1)).default([]),
+  /**
+   * Services explicitly granted when this invitation was created.
+   * Used to determine which features the member can access after accepting.
+   * Defaults to benefits_catalog for backwards compatibility.
+   */
+  services: z.array(z.string()).default(['benefits_catalog']),
   tokenHash: z.string().min(64).max(64),
   status: z.enum(TENANT_MEMBER_INVITATION_STATUSES),
   invitedByIdentityId: z.string().min(1),
