@@ -62,6 +62,8 @@ export interface DashboardAuthorization {
    * Empty array for platform admins or users with no domain tenant membership.
    */
   memberServices: string[];
+  /** True when business setup is complete and the tenant can go live. */
+  businessSetupComplete: boolean;
 }
 
 export interface TenantSeats {
@@ -163,6 +165,8 @@ function getDashboardAuthorization(
     canPurchaseCatalog: false,
     // memberServices is overwritten in getMe() after the domain TenantMember document is fetched.
     memberServices: [],
+    // businessSetupComplete is overwritten in getMe() after the tenantOnboardingStates lookup.
+    businessSetupComplete: false,
   };
 }
 
@@ -347,10 +351,10 @@ export async function getMe(userId: string): Promise<MeResponse> {
   const tenantCollections = getTenantDomainCollections(db);
   const identityCollections = getIdentityDomainCollections(db);
 
-  // Run all three tenant-scoped lookups in parallel to avoid serial latency on
+  // Run all four tenant-scoped lookups in parallel to avoid serial latency on
   // every /api/me call. domainTenantStatus feeds resolveCatalogMode, which is
   // called after Promise.all resolves.
-  const [domainTenantDoc, userRoles, domainMemberDoc] = await Promise.all([
+  const [domainTenantDoc, userRoles, domainMemberDoc, tenantOnboardingState] = await Promise.all([
     // Look up the domain tenant's live status (separate from the legacy onboarding tenant).
     context.tenantId
       ? tenantCollections.domainTenants.findOne(
@@ -376,12 +380,28 @@ export async function getMe(userId: string): Promise<MeResponse> {
           { projection: { services: 1 } },
         )
       : Promise.resolve(null),
+    // Fetch the domain onboarding state to determine whether business setup is complete.
+    // The same ready states are used by triggerGoLive to validate readiness.
+    context.tenantId
+      ? tenantCollections.tenantOnboardingStates.findOne(
+          { tenantId: context.tenantId },
+          { projection: { state: 1 } },
+        )
+      : Promise.resolve(null),
   ]);
 
   const domainTenantStatus: string | null = domainTenantDoc?.status ?? null;
   const hasMemberRole = userRoles.some((r) => r.role === 'member');
   const memberServices: string[] =
     domainMemberDoc != null ? (domainMemberDoc.services ?? [...DEFAULT_MEMBER_SERVICES]) : [];
+
+  // Business setup is complete when the domain onboarding state is past the setup phase.
+  // The same states are used by triggerGoLive to validate readiness.
+  const READY_FOR_GO_LIVE = ['build_mode', 'wizard_completed', 'go_live_pending', 'active'] as const;
+  const businessSetupComplete =
+    tenantOnboardingState !== null &&
+    tenantOnboardingState !== undefined &&
+    READY_FOR_GO_LIVE.includes(tenantOnboardingState.state as typeof READY_FOR_GO_LIVE[number]);
 
   const catalogMode = await resolveCatalogMode(
     context.tenantId ?? null,
@@ -411,6 +431,7 @@ export async function getMe(userId: string): Promise<MeResponse> {
       catalogServiceActive: catalogMode !== 'inactive',
       canPurchaseCatalog: hasMemberRole && catalogMode !== 'inactive',
       memberServices,
+      businessSetupComplete,
     },
     onboarding: status.onboarding,
   };
