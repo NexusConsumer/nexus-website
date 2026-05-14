@@ -14,7 +14,10 @@ import {
   listPendingInvitationsForTenant,
   listTenantRolesForManager,
 } from '../services/domain-member-read.service';
-import { activateBenefitsCatalogForUser } from '../services/domain-service-activation.service';
+import {
+  activateBenefitsCatalogForUser,
+  deactivateBenefitsCatalogForUser,
+} from '../services/domain-service-activation.service';
 import { triggerGoLive } from '../services/onboarding.service';
 import { resolveTenantContextWithPermission } from '../utils/resolve-tenant-context';
 
@@ -29,6 +32,37 @@ router.post(
       const input = benefitsCatalogActivationSchema.parse(req.body);
       const result = await activateBenefitsCatalogForUser(req.user!.sub, input);
       res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/**
+ * POST /api/v1/tenant/services/benefits-catalog/deactivate
+ *
+ * Suspends the Benefits Catalog service for the authenticated user's tenant.
+ * Sets TenantServiceActivation.status = 'suspended' and marks all active
+ * tenant-created NexusOffer records as inactive.
+ *
+ * Members will immediately see the 'Service not yet active' gate in MemberCatalog
+ * because resolveCatalogMode() returns 'inactive' when no active activation exists.
+ *
+ * Requires the workspace.activate_service permission (held by tenant owner/admin).
+ * Tenant context is derived from server-side MongoDB membership - never from the request.
+ *
+ * Returns: { tenantId, serviceKey, status: 'suspended', offersDeactivated: number }
+ * Errors:  401 when not authenticated.
+ *          403 when the user lacks workspace.activate_service permission.
+ */
+router.post(
+  '/services/benefits-catalog/deactivate',
+  authenticate,
+  apiLimiter,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const result = await deactivateBenefitsCatalogForUser(req.user!.sub);
+      res.json(result);
     } catch (error) {
       next(error);
     }
