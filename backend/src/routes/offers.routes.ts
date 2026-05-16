@@ -56,7 +56,7 @@ const upload = multer({
  */
 const createOfferSchema = z.object({
   title: z.string().min(1).max(200),
-  description: z.string().max(2000).default(''),
+  description: z.string().max(10000).default(''),
   category: z.enum(OFFER_CATEGORIES),
   raw_cost: z.coerce.number().positive(),
   market_price: z.coerce.number().positive().optional(),
@@ -89,7 +89,7 @@ const createOfferSchema = z.object({
  */
 const updateOfferSchema = z.object({
   title: z.string().min(1).max(200).optional(),
-  description: z.string().max(2000).optional(),
+  description: z.string().max(10000).optional(),
   raw_cost: z.coerce.number().positive().optional(),
   market_price: z.coerce.number().positive().optional(),
   status: z.enum(['active', 'inactive']).optional(),

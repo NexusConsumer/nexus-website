@@ -46,7 +46,7 @@ export type OfferExecutionType = typeof OFFER_EXECUTION_TYPES[number];
 export const nexusOfferSchema = z.object({
   offerId: z.string().min(1),
   title: z.string().min(1).max(200),
-  description: z.string().max(2000).default(''),
+  description: z.string().max(10000).default(''),
   imageUrl: z.string().url().optional(),
   category: z.enum(OFFER_CATEGORIES),
   raw_cost: z.number().positive(),
