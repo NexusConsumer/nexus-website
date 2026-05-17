@@ -35,7 +35,7 @@ import {
   adoptOffer,
   excludeOffer,
 } from '../services/catalog.service';
-import { OFFER_CATEGORIES, OFFER_VISIBILITY, OFFER_EXECUTION_TYPES } from '../models/domain/supply.models';
+import { OFFER_CATEGORIES, OFFER_VISIBILITY, OFFER_EXECUTION_TYPES, getSupplyDomainCollections } from '../models/domain/supply.models';
 import { syncDomainIdentityForLoginUser } from '../services/domain-identity.service';
 import { getDomainAuthorizationContext, hasDomainPermission } from '../services/domain-authorization.service';
 import {
@@ -237,6 +237,20 @@ router.post(
       // the client sends. This prevents accidentally scoping supply to a single tenant.
       const finalVisibility = ctx.isPlatformAdmin ? 'ecosystem' : parsed.data.visibility;
 
+      // Ecosystem offers require business setup to be complete so the tenant has
+      // a valid business profile before advertising to the entire platform.
+      // Uses getOnboardingStatus (same logic as /api/me) for consistency across all tenant types.
+      if (finalVisibility === 'ecosystem' && !ctx.isPlatformAdmin) {
+        const { onboarding } = await getOnboardingStatus(req.user!.sub);
+        if (onboarding.step === 'business_setup') {
+          res.status(403).json({
+            error: 'Complete your business setup before publishing offers to the ecosystem',
+            errorHe: 'יש להשלים את הגדרת העסק לפני פרסום הצעות לכל הפלטפורמה',
+          });
+          return;
+        }
+      }
+
       // Cross-field validation for voucher pricing.
       // These checks cannot be expressed in Zod without knowing the final visibility.
       const d = parsed.data;
@@ -266,6 +280,17 @@ router.post(
         createdByTenantId: ctx.tenantId,
         createdByIdentityId: ctx.identityId,
       });
+
+      // Auto-adopt tenant_only offers for the creating tenant so the offer
+      // appears in their catalog immediately without a manual toggle.
+      if (offer.visibility === 'tenant_only') {
+        try {
+          await adoptOffer(ctx.tenantId, offer.offerId, ctx.identityId);
+        } catch (err) {
+          // Log but do not fail the response - offer was created successfully.
+          console.error('[OFFERS] Auto-adopt failed for tenant_only offer:', err);
+        }
+      }
 
       // Send approval-request emails to platform admins when the offer enters the approval queue.
       if (offer.status === 'pending_approval') {
@@ -573,16 +598,26 @@ router.post(
         'catalog.adopt_offer',
       );
 
-      // Enforce business setup completion before allowing offer adoption.
-      // Uses getOnboardingStatus (same logic as /api/me) so the check works for
-      // all tenant types regardless of how their tenantId was generated.
-      const { onboarding } = await getOnboardingStatus(req.user!.sub);
-      if (onboarding.step === 'business_setup') {
-        res.status(403).json({
-          error: 'Complete your business setup before adopting offers',
-          errorHe: 'יש להשלים את הגדרת העסק לפני אימוץ הצעות',
-        });
-        return;
+      // Business setup is only required when adopting another tenant's offer.
+      // Tenants can always adopt their own offers (e.g. re-adopting a tenant_only
+      // offer after unadopting it) regardless of setup status.
+      const db = await getMongoDb();
+      const { nexusOffers } = getSupplyDomainCollections(db);
+      const targetOffer = await nexusOffers.findOne(
+        { offerId: req.params.offerId },
+        { projection: { createdByTenantId: 1 } },
+      );
+      const isOwnOffer = targetOffer?.createdByTenantId === tenantId;
+
+      if (!isOwnOffer) {
+        const { onboarding } = await getOnboardingStatus(req.user!.sub);
+        if (onboarding.step === 'business_setup') {
+          res.status(403).json({
+            error: 'Complete your business setup before adopting offers',
+            errorHe: 'יש להשלים את הגדרת העסק לפני אימוץ הצעות',
+          });
+          return;
+        }
       }
 
       await adoptOffer(tenantId, req.params.offerId, identityId);
