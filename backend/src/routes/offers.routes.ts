@@ -46,6 +46,7 @@ import {
   getConfiguredAdminEmails,
 } from '../services/voucher-approval-email.service';
 import { getIdentityDomainCollections } from '../models/domain/identity.models';
+import { getOnboardingStatus } from '../services/onboarding.service';
 
 const router = Router();
 
@@ -553,8 +554,13 @@ router.delete(
  * Adopts a platform offer into the tenant's member-facing catalog.
  * Requires: catalog.adopt_offer permission.
  *
+ * Business rule: the tenant must have completed business setup before adopting
+ * offers. Uses getOnboardingStatus (same logic as /api/me) so the check is
+ * consistent for all tenant types and survives future identity model changes.
+ *
  * Input: offerId as path param.
  * Output: { success: true } on adoption.
+ *         403 when business setup is not yet submitted.
  *         404 when the offer is not found or not visible to this tenant.
  */
 router.post(
@@ -566,6 +572,19 @@ router.post(
         req,
         'catalog.adopt_offer',
       );
+
+      // Enforce business setup completion before allowing offer adoption.
+      // Uses getOnboardingStatus (same logic as /api/me) so the check works for
+      // all tenant types regardless of how their tenantId was generated.
+      const { onboarding } = await getOnboardingStatus(req.user!.sub);
+      if (onboarding.step === 'business_setup') {
+        res.status(403).json({
+          error: 'Complete your business setup before adopting offers',
+          errorHe: 'יש להשלים את הגדרת העסק לפני אימוץ הצעות',
+        });
+        return;
+      }
+
       await adoptOffer(tenantId, req.params.offerId, identityId);
       res.json({ success: true });
     } catch (err) {
