@@ -1,14 +1,17 @@
 /**
  * MongoDB schemas and TypeScript interfaces for NEXUS supply layer.
  * Build-mode: one Offer per product (no separate Variant documents yet).
- * Pricing is represented only by optional market_price (display reference).
- * No internal cost tracking at this stage.
+ * Pricing has three levels for voucher offers:
+ *   face_value  - the voucher face value shown to members.
+ *   nexus_cost  - what the supplier charges Nexus (stored server-side only, never exposed to adopting tenants).
+ *   member_price - what end customers pay (must satisfy nexus_cost <= member_price <= face_value).
+ * Voucher ecosystem offers enter pending_approval and require platform admin approval before going live.
  */
 import type { Db } from 'mongodb';
 import { z } from 'zod';
 import { DOMAIN_COLLECTIONS } from './collections';
 
-export const OFFER_STATUSES = ['draft', 'active', 'inactive'] as const;
+export const OFFER_STATUSES = ['draft', 'active', 'inactive', 'pending_approval', 'denied'] as const;
 export const OFFER_CATEGORIES = [
   'food_beverage', 'fashion', 'health_wellness', 'entertainment',
   'travel', 'technology', 'education', 'financial', 'home_living', 'other',
@@ -49,6 +52,14 @@ export const nexusOfferSchema = z.object({
   imageUrl: z.string().url().optional(),
   category: z.enum(OFFER_CATEGORIES),
   market_price: z.number().positive().optional(),
+  /** Voucher face value (e.g. ₪100). Only applicable when executionType === 'voucher'. */
+  face_value: z.number().positive().optional(),
+  /** What the supplier charges Nexus. Stored only - never returned to adopting tenants or members. */
+  nexus_cost: z.number().positive().optional(),
+  /** What end customers pay. Must satisfy: nexus_cost <= member_price <= face_value. */
+  member_price: z.number().positive().optional(),
+  /** Reason provided by platform admin when denying a voucher offer. Cleared on resubmit. */
+  denial_reason: z.string().max(1000).optional(),
   status: z.enum(OFFER_STATUSES).default('active'),
   visibility: z.enum(OFFER_VISIBILITY).default('ecosystem'),
   /** How the offer is fulfilled/redeemed. Defaults to voucher. */

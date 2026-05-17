@@ -3,6 +3,9 @@
  *
  * Image uploads are handled via the Cloudinary signed-upload utility.
  * If no image is supplied a static placeholder URL is used instead.
+ *
+ * Read and approval operations (listPlatformOffers, approveOffer, denyOffer) live in
+ * supply-approval.service.ts to keep this file within the 350-line limit.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -48,6 +51,12 @@ export interface CreateOfferInput {
   terms?: string;
   /** Display tags set by the offer creator (max 10, each max 50 chars). */
   tags?: string[];
+  /** Voucher face value. Required when executionType === 'voucher'. */
+  face_value?: number;
+  /** Cost Nexus pays the supplier. Stored server-side only; never exposed to adopting tenants. */
+  nexus_cost?: number;
+  /** Price end customers pay. Must satisfy: nexus_cost <= member_price <= face_value. */
+  member_price?: number;
   /** Raw image bytes to upload to Cloudinary. Optional - falls back to placeholder. */
   imageBuffer?: Buffer;
   /** Original filename used to derive a readable Cloudinary public_id. */
@@ -85,6 +94,12 @@ export interface UpdateOfferInput {
   terms?: string;
   /** Updated display tags. */
   tags?: string[];
+  /** Updated voucher face value. */
+  face_value?: number;
+  /** Updated supplier cost to Nexus (stored server-side only). */
+  nexus_cost?: number;
+  /** Updated end customer price. */
+  member_price?: number;
   /** Replacement image bytes to upload to Cloudinary. */
   imageBuffer?: Buffer;
   /** Filename for the replacement image. */
@@ -119,6 +134,15 @@ export async function createOffer(input: CreateOfferInput): Promise<NexusOffer> 
 
   const now = new Date();
 
+  const executionType = input.executionType ?? 'voucher';
+
+  // Voucher ecosystem offers enter pending_approval so a platform admin can review
+  // pricing (especially nexus_cost) before the offer goes live to all tenants.
+  const status =
+    executionType === 'voucher' && input.visibility === 'ecosystem'
+      ? 'pending_approval'
+      : 'active';
+
   const offer: NexusOffer = {
     offerId: randomUUID(),
     title: input.title,
@@ -126,9 +150,13 @@ export async function createOffer(input: CreateOfferInput): Promise<NexusOffer> 
     imageUrl,
     category: input.category,
     market_price: input.market_price,
-    status: 'active',
+    // Voucher pricing fields - only populated when executionType === 'voucher'.
+    ...(input.face_value !== undefined && { face_value: input.face_value }),
+    ...(input.nexus_cost !== undefined && { nexus_cost: input.nexus_cost }),
+    ...(input.member_price !== undefined && { member_price: input.member_price }),
+    status,
     visibility: input.visibility,
-    executionType: input.executionType ?? 'voucher',
+    executionType,
     stockLimit: input.stockLimit ?? null,
     stockUsed: 0,
     implementationLink: input.implementationLink ?? null,
@@ -154,24 +182,33 @@ export async function createOffer(input: CreateOfferInput): Promise<NexusOffer> 
  *
  * - Only the tenant that created the offer may update it (ownership enforced
  *   via the `createdByTenantId` filter in the MongoDB query).
- * - When a new image buffer is provided, it is uploaded and the imageUrl
- *   field is replaced.
+ * - When a new image buffer is provided, it is uploaded and the imageUrl field is replaced.
+ * - Resubmit logic: if the offer's current status is 'denied', the update automatically
+ *   transitions it back to 'pending_approval' and clears the denial_reason.
  *
  * Input:
  *   offerId  - UUID of the offer to update.
  *   tenantId - MongoDB tenantId derived from server-side auth (ownership check).
  *   input    - UpdateOfferInput with the fields to change.
- * Output: Promise resolving to the updated NexusOffer, or null when the offer
- *         does not exist or is not owned by tenantId.
+ * Output: Promise resolving to { offer, wasResubmitted } on success, or null when
+ *         the offer does not exist or is not owned by tenantId.
  * Throws: on Cloudinary failure or MongoDB write error.
  */
 export async function updateOffer(
   offerId: string,
   tenantId: string,
   input: UpdateOfferInput
-): Promise<NexusOffer | null> {
+): Promise<{ offer: NexusOffer; wasResubmitted: boolean } | null> {
   const db = await getMongoDb();
   const { nexusOffers } = getSupplyDomainCollections(db);
+
+  // Read current offer to detect denied status for resubmit flow.
+  // Ownership is checked here to avoid a redundant DB round trip on not-found.
+  const currentOffer = await nexusOffers.findOne({ offerId, createdByTenantId: tenantId });
+  if (!currentOffer) return null;
+
+  // When a denied offer is edited and saved, it automatically re-enters the approval queue.
+  const wasResubmitted = currentOffer.status === 'denied';
 
   // Upload replacement image only when both buffer and filename are supplied.
   let imageUrl: string | undefined;
@@ -194,7 +231,12 @@ export async function updateOffer(
     ...(input.validUntil !== undefined && { validUntil: input.validUntil }),
     ...(input.terms !== undefined && { terms: input.terms }),
     ...(input.tags !== undefined && { tags: input.tags }),
+    ...(input.face_value !== undefined && { face_value: input.face_value }),
+    ...(input.nexus_cost !== undefined && { nexus_cost: input.nexus_cost }),
+    ...(input.member_price !== undefined && { member_price: input.member_price }),
     ...(imageUrl !== undefined && { imageUrl }),
+    // Resubmit: clear denial and move back to approval queue.
+    ...(wasResubmitted && { status: 'pending_approval', denial_reason: '' }),
   };
 
   const result = await nexusOffers.findOneAndUpdate(
@@ -204,50 +246,13 @@ export async function updateOffer(
     { returnDocument: 'after' }
   );
 
-  return result ?? null;
+  if (!result) return null;
+  return { offer: result, wasResubmitted };
 }
 
 // ---------------------------------------------------------------------------
 // Read operations
 // ---------------------------------------------------------------------------
-
-/**
- * Lists all active platform offers that are visible to a specific tenant.
- *
- * Visibility rules:
- * - `ecosystem` offers are visible to all tenants.
- * - `tenant_only` offers are visible only to the tenant whose id matches
- *   invitedByTenantId.
- *
- * Input:
- *   tenantId - MongoDB tenantId of the requesting tenant.
- *   category - Optional category slug to narrow results; pass `'all'` or
- *              omit to return every category.
- * Output: Promise resolving to an array of NexusOffer sorted newest-first.
- *         Returns an empty array when no offers match.
- */
-export async function listPlatformOffers(
-  tenantId: string,
-  category?: string
-): Promise<NexusOffer[]> {
-  const db = await getMongoDb();
-  const { nexusOffers } = getSupplyDomainCollections(db);
-
-  const filter: Record<string, unknown> = {
-    status: 'active',
-    $or: [
-      { visibility: 'ecosystem' },
-      { visibility: 'tenant_only', invitedByTenantId: tenantId },
-    ],
-  };
-
-  // Apply category filter only when a specific category is requested.
-  if (category && category !== 'all') {
-    filter['category'] = category;
-  }
-
-  return nexusOffers.find(filter).sort({ createdAt: -1 }).toArray();
-}
 
 // ---------------------------------------------------------------------------
 // Delete operations

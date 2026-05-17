@@ -4,6 +4,10 @@
  * Resolves what offers a tenant has adopted and what members can see.
  * Never writes to NexusOffer directly.
  *
+ * Security note: nexus_cost is a sensitive pricing field that must NEVER be
+ * exposed to adopting tenants or members. It is only included in CatalogItem
+ * when the requesting tenant is the offer creator, or when they are a platform admin.
+ *
  * Exports:
  *   getTenantCatalogView  - all visible offers with per-tenant adoption status (admin use)
  *   getMemberCatalogView  - only adopted offers for a tenant's members
@@ -25,6 +29,7 @@ import {
 
 /**
  * Shape returned to any caller of this service.
+ * Fields marked as "creating tenant + platform admin only" are omitted for all other callers.
  */
 export interface CatalogItem {
   /** Stable UUID that identifies the offer across the platform. */
@@ -37,6 +42,20 @@ export interface CatalogItem {
   category: string;
   /** Optional retail market price for display purposes. */
   market_price?: number;
+  /** Voucher face value (e.g. ₪100). Exposed to everyone when present. */
+  face_value?: number;
+  /** Price end customers pay. Exposed to everyone when present. */
+  member_price?: number;
+  /**
+   * Cost the supplier charges Nexus.
+   * SECURITY: only populated for the creating tenant or platform admin.
+   * Must never be returned to adopting tenants or members.
+   */
+  nexus_cost?: number;
+  /** Current lifecycle status of the offer (e.g. active, pending_approval, denied). */
+  approval_status?: string;
+  /** Denial reason from the platform admin. Only populated for the creating tenant. */
+  denial_reason?: string;
   /** True when the tenant has an active TenantOfferConfig for this offer. */
   isAdopted: boolean;
   /** Timestamp when this tenant adopted the offer, if adopted. */
@@ -70,14 +89,25 @@ export interface CatalogItem {
 /**
  * Maps a NexusOffer document and an optional TenantOfferConfig into a CatalogItem.
  *
- * Input:
- *   offer  - the NexusOffer document from MongoDB.
- *   config - the matching TenantOfferConfig for this tenant, or undefined when
- *            the tenant has never interacted with this offer.
+ * Security note: nexus_cost is only populated when the caller is the offer's
+ * creating tenant OR a platform admin. It is never returned to adopting tenants
+ * or members to protect supplier margin information.
  *
- * Output: CatalogItem with resolved adoption state.
+ * Input:
+ *   offer   - the NexusOffer document from MongoDB.
+ *   config  - the matching TenantOfferConfig for this tenant, or undefined when
+ *             the tenant has never interacted with this offer.
+ *   context - caller context flags that control sensitive field visibility.
+ *     isOwnOffer     - true when the requesting tenant created this offer.
+ *     isPlatformAdmin - true when the caller is a NEXUS platform admin.
+ *
+ * Output: CatalogItem with resolved adoption state and context-sensitive pricing.
  */
-function toItem(offer: NexusOffer, config: TenantOfferConfig | undefined): CatalogItem {
+function toItem(
+  offer: NexusOffer,
+  config: TenantOfferConfig | undefined,
+  context: { isOwnOffer: boolean; isPlatformAdmin: boolean }
+): CatalogItem {
   return {
     offerId: offer.offerId,
     title: offer.title,
@@ -85,6 +115,18 @@ function toItem(offer: NexusOffer, config: TenantOfferConfig | undefined): Catal
     imageUrl: offer.imageUrl,
     category: offer.category,
     market_price: offer.market_price,
+    // Voucher pricing - face_value and member_price are public; nexus_cost is restricted.
+    face_value: offer.face_value,
+    member_price: offer.member_price,
+    // nexus_cost is only revealed to the offer creator and platform admins.
+    ...(
+      (context.isOwnOffer || context.isPlatformAdmin) &&
+      offer.nexus_cost !== undefined && { nexus_cost: offer.nexus_cost }
+    ),
+    // approval_status shows the offer's current lifecycle state (always returned).
+    approval_status: offer.status,
+    // denial_reason is only shown to the supplier so they can address feedback.
+    ...(context.isOwnOffer && offer.denial_reason && { denial_reason: offer.denial_reason }),
     isAdopted: config?.adoptionStatus === 'active',
     adoptedAt: config?.adoptedAt,
     createdByTenantId: offer.createdByTenantId,
@@ -117,29 +159,49 @@ function toItem(offer: NexusOffer, config: TenantOfferConfig | undefined): Catal
  *   - ecosystem  : visible to every tenant.
  *   - tenant_only: visible only to the specific invitedByTenantId.
  *
+ * Offer status rules:
+ *   - active offers are always included.
+ *   - pending_approval / denied offers are only included when the requesting
+ *     tenant created them, or when the caller is a platform admin.
+ *
  * Used by: GET /api/v1/offers/platform (admin Benefits & Partnerships page).
  *
  * Input:
  *   tenantId - the requesting tenant's Mongo string id.
  *   category - optional filter; pass "all" or omit to return all categories.
+ *   options.isPlatformAdmin - when true, all pending_approval offers are included.
  *
  * Output: CatalogItem[] sorted newest-first, with isAdopted reflecting this
- *         tenant's current adoption state.
+ *         tenant's current adoption state and context-sensitive pricing fields.
  */
 export async function getTenantCatalogView(
   tenantId: string,
   category?: string,
+  options?: { isPlatformAdmin?: boolean },
 ): Promise<CatalogItem[]> {
   const db = await getMongoDb();
   const { nexusOffers, tenantOfferConfigs } = getSupplyDomainCollections(db);
 
   const offerFilter: Record<string, unknown> = {
-    status: 'active',
-    $or: [
-      { visibility: 'ecosystem' },
-      { visibility: 'tenant_only', invitedByTenantId: tenantId },
+    $and: [
+      {
+        $or: [
+          { visibility: 'ecosystem' },
+          { visibility: 'tenant_only', invitedByTenantId: tenantId },
+        ],
+      },
+      {
+        $or: [
+          { status: 'active' },
+          // Creator always sees their own pending/denied offers for status tracking.
+          { status: { $in: ['pending_approval', 'denied'] }, createdByTenantId: tenantId },
+          // Platform admins see all pending_approval offers to perform approve/deny.
+          ...(options?.isPlatformAdmin ? [{ status: 'pending_approval' }] : []),
+        ],
+      },
     ],
   };
+
   if (category && category !== 'all') {
     offerFilter['category'] = category;
   }
@@ -154,7 +216,12 @@ export async function getTenantCatalogView(
     configs.map((c) => [c.offerId, c]),
   );
 
-  return offers.map((o) => toItem(o, configMap.get(o.offerId)));
+  return offers.map((o) =>
+    toItem(o, configMap.get(o.offerId), {
+      isOwnOffer: o.createdByTenantId === tenantId,
+      isPlatformAdmin: options?.isPlatformAdmin ?? false,
+    })
+  );
 }
 
 /**
@@ -210,7 +277,10 @@ export async function getMemberCatalogView(
     adoptedConfigs.map((c) => [c.offerId, c]),
   );
 
-  return offers.map((o) => toItem(o, configMap.get(o.offerId)));
+  // Member catalog view: members never see nexus_cost or approval_status details.
+  return offers.map((o) =>
+    toItem(o, configMap.get(o.offerId), { isOwnOffer: false, isPlatformAdmin: false })
+  );
 }
 
 // ---------------------------------------------------------------------------

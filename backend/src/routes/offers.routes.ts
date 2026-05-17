@@ -2,14 +2,19 @@
  * Offers routes - HTTP handlers for all offer-related endpoints.
  *
  * Route names match openapi.json paths exactly with /v1/ prefix.
- * Static path segments (/platform, /status, /stats, /barcodes) are registered
- * BEFORE dynamic /:offerId patterns to prevent Express catching them as offer ids.
+ * Static path segments (/platform, /status, /stats, /barcodes, /:offerId/approve, /:offerId/deny)
+ * are registered BEFORE dynamic /:offerId patterns to prevent Express catching them as offer ids.
  *
  * Authorization: supply/catalog permissions are checked inline via
  * resolveTenantContextWithPermission rather than the requireDomainPermission
  * middleware. This is required because the middleware resolves roles with a null
  * tenantId when no :tenantId param exists in the URL, which would find no
  * tenant-scoped role assignments and incorrectly deny all users.
+ *
+ * Voucher approval flow:
+ *   - Ecosystem voucher creation sets status = 'pending_approval' and emails platform admins.
+ *   - Platform admins can POST /:offerId/approve or POST /:offerId/deny (with reason).
+ *   - Denied offers transition back to 'pending_approval' when the supplier edits and saves them.
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import multer from 'multer';
@@ -23,6 +28,7 @@ import {
   resolveTenantContextWithPermission,
 } from '../utils/resolve-tenant-context';
 import { createOffer, updateOffer, deleteOffer } from '../services/supply.service';
+import { approveOffer, denyOffer } from '../services/supply-approval.service';
 import {
   getTenantCatalogView,
   getMemberCatalogView,
@@ -32,6 +38,13 @@ import {
 import { OFFER_CATEGORIES, OFFER_VISIBILITY, OFFER_EXECUTION_TYPES } from '../models/domain/supply.models';
 import { syncDomainIdentityForLoginUser } from '../services/domain-identity.service';
 import { getDomainAuthorizationContext, hasDomainPermission } from '../services/domain-authorization.service';
+import {
+  sendVoucherApprovalRequestEmail,
+  sendVoucherApprovedEmail,
+  sendVoucherDeniedEmail,
+  getConfiguredAdminEmails,
+} from '../services/voucher-approval-email.service';
+import { getIdentityDomainCollections } from '../models/domain/identity.models';
 
 const router = Router();
 
@@ -50,6 +63,8 @@ const upload = multer({
 /**
  * Validates the body for creating a new offer.
  * Numeric fields use coerce to handle multipart/form-data string values.
+ * face_value, nexus_cost, member_price are required for voucher offers
+ * (enforced in the handler after type-level parse).
  */
 const createOfferSchema = z.object({
   title: z.string().min(1).max(200),
@@ -77,6 +92,10 @@ const createOfferSchema = z.object({
     },
     z.array(z.string().max(50)).max(10).optional().default([])
   ),
+  // Voucher pricing fields - required for executionType === 'voucher' (cross-field validated in handler).
+  face_value: z.coerce.number().positive().optional(),
+  nexus_cost: z.coerce.number().positive().optional(),
+  member_price: z.coerce.number().positive().optional(),
 });
 
 /**
@@ -102,6 +121,10 @@ const updateOfferSchema = z.object({
     },
     z.array(z.string().max(50)).max(10).optional()
   ),
+  // Voucher pricing fields - can be updated by the offer creator.
+  face_value: z.coerce.number().positive().optional(),
+  nexus_cost: z.coerce.number().positive().optional(),
+  member_price: z.coerce.number().positive().optional(),
 });
 
 // ─── Static paths first ───────────────────────────────────────────────────────
@@ -110,6 +133,7 @@ const updateOfferSchema = z.object({
 /**
  * GET /api/v1/offers/platform
  * Returns all visible platform offers with per-tenant adoption status.
+ * Platform admins additionally see pending_approval offers and sensitive pricing fields.
  * Used by the admin Benefits & Partnerships page.
  * Requires: catalog.view permission.
  */
@@ -118,10 +142,12 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const { tenantId } = await resolveTenantContextWithPermission(req, 'catalog.view');
+      const ctx = await resolveTenantContextWithPermission(req, 'catalog.view');
       const category =
         typeof req.query.category === 'string' ? req.query.category : undefined;
-      const items = await getTenantCatalogView(tenantId, category);
+      const items = await getTenantCatalogView(ctx.tenantId, category, {
+        isPlatformAdmin: ctx.isPlatformAdmin,
+      });
       res.json({ items });
     } catch (err) {
       next(err);
@@ -182,10 +208,14 @@ router.get(
  * Creates a new platform offer. Accepts optional image file via multipart/form-data.
  * Requires: supply.ingest permission.
  *
+ * Voucher ecosystem offers enter 'pending_approval' status automatically.
+ * An approval-request email is sent to all NEXUS platform admins.
+ *
  * Input body (multipart or JSON):
  *   title, description, category, market_price (optional), visibility
+ *   face_value, nexus_cost, member_price (required when executionType === 'voucher')
  * Input file (optional): image field, max 5 MB.
- * Output: created offer document.
+ * Output: created offer document (includes nexus_cost for creator).
  */
 router.post(
   '/',
@@ -205,6 +235,24 @@ router.post(
       // the client sends. This prevents accidentally scoping supply to a single tenant.
       const finalVisibility = ctx.isPlatformAdmin ? 'ecosystem' : parsed.data.visibility;
 
+      // Cross-field validation for voucher pricing.
+      // These checks cannot be expressed in Zod without knowing the final visibility.
+      const d = parsed.data;
+      if (d.executionType === 'voucher') {
+        if (!d.face_value || !d.nexus_cost || !d.member_price) {
+          res.status(400).json({ error: 'Voucher offers require face_value, nexus_cost, and member_price' });
+          return;
+        }
+        if (d.nexus_cost >= d.face_value) {
+          res.status(400).json({ error: 'nexus_cost must be less than face_value' });
+          return;
+        }
+        if (d.member_price < d.nexus_cost || d.member_price > d.face_value) {
+          res.status(400).json({ error: 'member_price must be between nexus_cost and face_value (inclusive)' });
+          return;
+        }
+      }
+
       // Convert validUntil ISO string (from multipart form) to a Date object.
       const { validUntil: validUntilStr, ...restParsed } = parsed.data;
       const offer = await createOffer({
@@ -216,6 +264,25 @@ router.post(
         createdByTenantId: ctx.tenantId,
         createdByIdentityId: ctx.identityId,
       });
+
+      // Send approval-request emails to platform admins when the offer enters the approval queue.
+      if (offer.status === 'pending_approval') {
+        const adminEmails = getConfiguredAdminEmails();
+        // Look up the supplier tenant name for the email body.
+        try {
+          const db = await getMongoDb();
+          const tenantCollections = getTenantDomainCollections(db);
+          const tenantDoc = await tenantCollections.domainTenants.findOne({ tenantId: ctx.tenantId });
+          const supplierName = tenantDoc?.organizationName ?? ctx.tenantId;
+          // Fire-and-forget: do not await so email latency cannot affect response time.
+          sendVoucherApprovalRequestEmail(adminEmails, offer, supplierName).catch((err) => {
+            console.error('[OFFERS] Approval-request email failed:', err);
+          });
+        } catch (err) {
+          // Email lookup failure must not fail the creation response.
+          console.error('[OFFERS] Could not resolve supplier name for approval email:', err);
+        }
+      }
 
       res.status(201).json({ offer });
     } catch (err) {
@@ -231,7 +298,10 @@ router.post(
  * Requires: supply.manage_offers permission.
  * Ownership is enforced by supply.service - only the creating tenant may update.
  *
- * Input body (multipart or JSON): any subset of title, description, market_price, status.
+ * Resubmit flow: if the offer was in 'denied' status, editing automatically
+ * transitions it to 'pending_approval' and sends a new approval-request email to admins.
+ *
+ * Input body (multipart or JSON): any subset of offer fields including face_value, nexus_cost, member_price.
  * Input file (optional): image field, max 5 MB.
  * Output: updated offer document, or 404 when not found / not owned.
  */
@@ -247,14 +317,14 @@ router.patch(
         return;
       }
 
-      const { tenantId } = await resolveTenantContextWithPermission(
+      const ctx = await resolveTenantContextWithPermission(
         req,
         'supply.manage_offers',
       );
 
       // Convert validUntil ISO string (from multipart form) to a Date object.
       const { validUntil: validUntilStr, ...restParsed } = parsed.data;
-      const offer = await updateOffer(req.params.offerId, tenantId, {
+      const result = await updateOffer(req.params.offerId, ctx.tenantId, {
         ...restParsed,
         ...(validUntilStr !== undefined && {
           validUntil: validUntilStr ? new Date(validUntilStr) : null,
@@ -263,12 +333,165 @@ router.patch(
         imageFilename: req.file?.originalname,
       });
 
-      if (!offer) {
-        res.status(404).json({ error: 'Offer not found' });
+      if (!result) {
+        res.status(404).json({ error: 'Offer not found or you do not own this offer' });
         return;
       }
 
+      const { offer, wasResubmitted } = result;
+
+      // When a denied offer is resubmitted, notify platform admins for re-review.
+      if (wasResubmitted) {
+        const adminEmails = getConfiguredAdminEmails();
+        try {
+          const db = await getMongoDb();
+          const tenantCollections = getTenantDomainCollections(db);
+          const tenantDoc = await tenantCollections.domainTenants.findOne({ tenantId: ctx.tenantId });
+          const supplierName = tenantDoc?.organizationName ?? ctx.tenantId;
+          sendVoucherApprovalRequestEmail(adminEmails, offer, supplierName).catch((err) => {
+            console.error('[OFFERS] Resubmit approval-request email failed:', err);
+          });
+        } catch (err) {
+          console.error('[OFFERS] Could not resolve supplier name for resubmit email:', err);
+        }
+      }
+
       res.json({ offer });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/**
+ * POST /api/v1/offers/:offerId/approve
+ * Approves a voucher offer that is currently in pending_approval status.
+ * Sets status to 'active' so all tenants can adopt it.
+ * Sends an approval notification email to the supplier.
+ *
+ * Authorization: platform admin only (NEXUS_ADMIN_EMAILS).
+ *
+ * Input:  offerId as path param.
+ * Output: { success: true } on approval, or 404 when not found / not in pending_approval.
+ */
+router.post(
+  '/:offerId/approve',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const ctx = await resolveTenantContext(req);
+
+      if (!ctx.isPlatformAdmin) {
+        res.status(403).json({ error: 'Only platform admins can approve offers' });
+        return;
+      }
+
+      const approvedOffer = await approveOffer(req.params.offerId);
+      if (!approvedOffer) {
+        res.status(404).json({ error: 'Offer not found or not in pending_approval status' });
+        return;
+      }
+
+      // Notify the supplier that their offer is now live.
+      try {
+        const db = await getMongoDb();
+        const identityCollections = getIdentityDomainCollections(db);
+        const tenantCollections = getTenantDomainCollections(db);
+
+        const [supplierIdentity, supplierTenant] = await Promise.all([
+          identityCollections.nexusIdentities.findOne({
+            nexusIdentityId: approvedOffer.createdByIdentityId,
+          }),
+          tenantCollections.domainTenants.findOne({ tenantId: approvedOffer.createdByTenantId }),
+        ]);
+
+        if (supplierIdentity?.normalizedEmail) {
+          const tenantName = supplierTenant?.organizationName ?? approvedOffer.createdByTenantId;
+          sendVoucherApprovedEmail(supplierIdentity.normalizedEmail, approvedOffer, tenantName).catch((err) => {
+            console.error('[OFFERS] Approved email failed:', err);
+          });
+        }
+      } catch (err) {
+        console.error('[OFFERS] Could not resolve supplier info for approved email:', err);
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/**
+ * POST /api/v1/offers/:offerId/deny
+ * Denies a voucher offer that is currently in pending_approval status.
+ * Sets status to 'denied' and records the reason so the supplier can edit and resubmit.
+ * Sends a denial notification email to the supplier.
+ *
+ * Authorization: platform admin only (NEXUS_ADMIN_EMAILS).
+ *
+ * Input body:
+ *   reason - string (min 10, max 1000 chars) explaining the denial.
+ * Input path: offerId.
+ * Output: { success: true } on denial, or 404 when not found / not in pending_approval.
+ */
+router.post(
+  '/:offerId/deny',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const ctx = await resolveTenantContext(req);
+
+      if (!ctx.isPlatformAdmin) {
+        res.status(403).json({ error: 'Only platform admins can deny offers' });
+        return;
+      }
+
+      // Validate denial reason.
+      const bodySchema = z.object({
+        reason: z.string().min(10).max(1000),
+      });
+      const bodyParsed = bodySchema.safeParse(req.body);
+      if (!bodyParsed.success) {
+        res.status(400).json({ error: bodyParsed.error.flatten() });
+        return;
+      }
+
+      const deniedOffer = await denyOffer(req.params.offerId, bodyParsed.data.reason);
+      if (!deniedOffer) {
+        res.status(404).json({ error: 'Offer not found or not in pending_approval status' });
+        return;
+      }
+
+      // Notify the supplier with the reason so they can correct and resubmit.
+      try {
+        const db = await getMongoDb();
+        const identityCollections = getIdentityDomainCollections(db);
+        const tenantCollections = getTenantDomainCollections(db);
+
+        const [supplierIdentity, supplierTenant] = await Promise.all([
+          identityCollections.nexusIdentities.findOne({
+            nexusIdentityId: deniedOffer.createdByIdentityId,
+          }),
+          tenantCollections.domainTenants.findOne({ tenantId: deniedOffer.createdByTenantId }),
+        ]);
+
+        if (supplierIdentity?.normalizedEmail) {
+          const tenantName = supplierTenant?.organizationName ?? deniedOffer.createdByTenantId;
+          sendVoucherDeniedEmail(
+            supplierIdentity.normalizedEmail,
+            deniedOffer,
+            bodyParsed.data.reason,
+            tenantName,
+          ).catch((err) => {
+            console.error('[OFFERS] Denied email failed:', err);
+          });
+        }
+      } catch (err) {
+        console.error('[OFFERS] Could not resolve supplier info for denied email:', err);
+      }
+
+      res.json({ success: true });
     } catch (err) {
       next(err);
     }
