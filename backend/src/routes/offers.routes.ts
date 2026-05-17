@@ -10,8 +10,6 @@
  * middleware. This is required because the middleware resolves roles with a null
  * tenantId when no :tenantId param exists in the URL, which would find no
  * tenant-scoped role assignments and incorrectly deny all users.
- *
- * Security: raw_cost is stripped from all API responses before sending to clients.
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import multer from 'multer';
@@ -32,7 +30,6 @@ import {
   excludeOffer,
 } from '../services/catalog.service';
 import { OFFER_CATEGORIES, OFFER_VISIBILITY, OFFER_EXECUTION_TYPES } from '../models/domain/supply.models';
-import type { NexusOffer } from '../models/domain/supply.models';
 import { syncDomainIdentityForLoginUser } from '../services/domain-identity.service';
 import { getDomainAuthorizationContext, hasDomainPermission } from '../services/domain-authorization.service';
 
@@ -58,7 +55,6 @@ const createOfferSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(10000).default(''),
   category: z.enum(OFFER_CATEGORIES),
-  raw_cost: z.coerce.number().positive(),
   market_price: z.coerce.number().positive().optional(),
   visibility: z.enum(OFFER_VISIBILITY).default('ecosystem'),
   executionType: z.enum(OFFER_EXECUTION_TYPES).default('voucher'),
@@ -90,7 +86,6 @@ const createOfferSchema = z.object({
 const updateOfferSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(10000).optional(),
-  raw_cost: z.coerce.number().positive().optional(),
   market_price: z.coerce.number().positive().optional(),
   status: z.enum(['active', 'inactive']).optional(),
   executionType: z.enum(OFFER_EXECUTION_TYPES).optional(),
@@ -108,20 +103,6 @@ const updateOfferSchema = z.object({
     z.array(z.string().max(50)).max(10).optional()
   ),
 });
-
-// ─── Utility ─────────────────────────────────────────────────────────────────
-
-/**
- * Strips raw_cost from an offer document before sending to the client.
- * This is a security guard - raw provider cost must never leave the backend.
- *
- * Input:  offer - full NexusOffer document including raw_cost.
- * Output: offer fields with raw_cost omitted.
- */
-function stripRawCost(offer: NexusOffer): Omit<NexusOffer, 'raw_cost'> {
-  const { raw_cost: _rc, ...safeOffer } = offer;
-  return safeOffer;
-}
 
 // ─── Static paths first ───────────────────────────────────────────────────────
 // These MUST be registered before /:offerId to prevent Express route conflicts.
@@ -202,9 +183,9 @@ router.get(
  * Requires: supply.ingest permission.
  *
  * Input body (multipart or JSON):
- *   title, description, category, raw_cost, market_price (optional), visibility
+ *   title, description, category, market_price (optional), visibility
  * Input file (optional): image field, max 5 MB.
- * Output: created offer with raw_cost stripped.
+ * Output: created offer document.
  */
 router.post(
   '/',
@@ -236,7 +217,7 @@ router.post(
         createdByIdentityId: ctx.identityId,
       });
 
-      res.status(201).json({ offer: stripRawCost(offer) });
+      res.status(201).json({ offer });
     } catch (err) {
       next(err);
     }
@@ -250,10 +231,9 @@ router.post(
  * Requires: supply.manage_offers permission.
  * Ownership is enforced by supply.service - only the creating tenant may update.
  *
- * Input body (multipart or JSON): any subset of title, description, raw_cost,
- *   market_price, status.
+ * Input body (multipart or JSON): any subset of title, description, market_price, status.
  * Input file (optional): image field, max 5 MB.
- * Output: updated offer with raw_cost stripped, or 404 when not found / not owned.
+ * Output: updated offer document, or 404 when not found / not owned.
  */
 router.patch(
   '/:offerId',
@@ -288,7 +268,7 @@ router.patch(
         return;
       }
 
-      res.json({ offer: stripRawCost(offer) });
+      res.json({ offer });
     } catch (err) {
       next(err);
     }

@@ -4,9 +4,6 @@
  * Resolves what offers a tenant has adopted and what members can see.
  * Never writes to NexusOffer directly.
  *
- * Build-mode pricing rule: member_price = nexus_price (markup layer not yet implemented).
- * raw_cost is never included in any public-facing object returned by this service.
- *
  * Exports:
  *   getTenantCatalogView  - all visible offers with per-tenant adoption status (admin use)
  *   getMemberCatalogView  - only adopted offers for a tenant's members
@@ -28,7 +25,6 @@ import {
 
 /**
  * Shape returned to any caller of this service.
- * Intentionally omits raw_cost - it must never leave the backend.
  */
 export interface CatalogItem {
   /** Stable UUID that identifies the offer across the platform. */
@@ -39,15 +35,8 @@ export interface CatalogItem {
   imageUrl?: string;
   /** Top-level offer category (e.g. "health", "food"). */
   category: string;
-  /** Nexus platform price in ILS (smallest unit: agora). */
-  nexus_price: number;
   /** Optional retail market price for display purposes. */
   market_price?: number;
-  /**
-   * The price a member pays. In build mode this equals nexus_price.
-   * A future markup layer will derive this from TenantCatalogPolicy.
-   */
-  member_price: number;
   /** True when the tenant has an active TenantOfferConfig for this offer. */
   isAdopted: boolean;
   /** Timestamp when this tenant adopted the offer, if adopted. */
@@ -86,9 +75,7 @@ export interface CatalogItem {
  *   config - the matching TenantOfferConfig for this tenant, or undefined when
  *            the tenant has never interacted with this offer.
  *
- * Output: CatalogItem with resolved adoption state and member_price.
- *
- * Security: raw_cost is never read or forwarded from this function.
+ * Output: CatalogItem with resolved adoption state.
  */
 function toItem(offer: NexusOffer, config: TenantOfferConfig | undefined): CatalogItem {
   return {
@@ -97,10 +84,7 @@ function toItem(offer: NexusOffer, config: TenantOfferConfig | undefined): Catal
     description: offer.description,
     imageUrl: offer.imageUrl,
     category: offer.category,
-    nexus_price: offer.nexus_price,
     market_price: offer.market_price,
-    // Build mode: member pays the same as nexus_price.
-    member_price: offer.nexus_price,
     isAdopted: config?.adoptionStatus === 'active',
     adoptedAt: config?.adoptedAt,
     createdByTenantId: offer.createdByTenantId,

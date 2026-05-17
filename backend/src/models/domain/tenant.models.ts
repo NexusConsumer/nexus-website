@@ -42,7 +42,7 @@ export const SERVICE_KEYS = ['benefits_catalog', 'provider_service', 'digital_wa
 export const SERVICE_ACTIVATION_STATUSES = ['inactive', 'pending_review', 'active', 'suspended'] as const;
 export const MEMBER_GROUP_TYPES = ['static', 'dynamic'] as const;
 export const CATALOG_ADOPTION_MODES = ['auto_silent', 'auto_notify', 'manual'] as const;
-export const DEFAULT_PRICING_RULES = ['nexus_price', 'inherit_selection', 'manual_required'] as const;
+export const DEFAULT_PRICING_RULES = ['inherit_selection', 'manual_required'] as const;
 export const TENANT_MEMBER_INVITATION_STATUSES = ['pending', 'accepted', 'expired', 'revoked'] as const;
 
 export type TenantDomainStatus = typeof TENANT_STATUSES[number];

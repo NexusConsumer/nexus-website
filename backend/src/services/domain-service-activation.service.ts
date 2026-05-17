@@ -31,7 +31,7 @@ interface BenefitsCatalogPolicyDefaults {
 const BENEFITS_CATALOG_MODE_DEFAULTS: Record<BenefitsCatalogStartingMode, BenefitsCatalogPolicyDefaults> = {
   plug_and_play: {
     catalogAdoptionMode: 'auto_silent',
-    defaultPricingRule: 'nexus_price',
+    defaultPricingRule: 'inherit_selection',
     publicPricingMode: 'managed_by_nexus',
   },
   curated: {

@@ -1,13 +1,6 @@
 /**
  * Supply Service - write authority for platform catalog offers.
  *
- * Build mode: the offer creator enters raw_cost; this service computes
- * nexus_price = raw_cost * 1.30 (30% platform margin) server-side.
- *
- * Security: raw_cost is stored in MongoDB but MUST NEVER be returned in
- * any API response. Callers are responsible for stripping it before sending
- * data to the client.
- *
  * Image uploads are handled via the Cloudinary signed-upload utility.
  * If no image is supplied a static placeholder URL is used instead.
  */
@@ -24,33 +17,11 @@ import {
 import { uploadOfferImage, defaultOfferImageUrl, deleteOfferImage } from '../utils/cloudinary';
 
 // ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-/** NEXUS platform margin applied on top of raw provider cost. */
-const NEXUS_PLATFORM_MARGIN = 0.30;
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Computes the nexus_price from raw provider cost using the platform margin.
- *
- * Input:  rawCost - provider cost in ILS (must be positive).
- * Output: nexus_price rounded to 2 decimal places.
- */
-function computeNexusPrice(rawCost: number): number {
-  return Math.round(rawCost * (1 + NEXUS_PLATFORM_MARGIN) * 100) / 100;
-}
-
-// ---------------------------------------------------------------------------
 // Public input/output interfaces
 // ---------------------------------------------------------------------------
 
 /**
  * Fields required to create a new platform offer.
- * raw_cost is the provider cost in ILS; nexus_price is derived automatically.
  */
 export interface CreateOfferInput {
   /** Display title shown to tenants and members. */
@@ -59,8 +30,6 @@ export interface CreateOfferInput {
   description: string;
   /** Taxonomy category for filtering. */
   category: OfferCategory;
-  /** Provider cost in ILS - used to compute nexus_price. Never exposed to frontend. */
-  raw_cost: number;
   /** Optional recommended retail price for display purposes. */
   market_price?: number;
   /** Controls which tenants can see the offer in the platform catalog. */
@@ -91,7 +60,6 @@ export interface CreateOfferInput {
 
 /**
  * Fields that may be updated on an existing offer.
- * When raw_cost changes, nexus_price is recomputed automatically.
  * Omitted fields are left unchanged.
  */
 export interface UpdateOfferInput {
@@ -99,8 +67,6 @@ export interface UpdateOfferInput {
   title?: string;
   /** New description text. */
   description?: string;
-  /** Updated provider cost - triggers nexus_price recomputation. */
-  raw_cost?: number;
   /** Updated recommended retail price. */
   market_price?: number;
   /** Lifecycle status change. */
@@ -132,13 +98,12 @@ export interface UpdateOfferInput {
 /**
  * Creates a new offer in the platform catalog.
  *
- * - Computes nexus_price = raw_cost * 1.30 server-side.
  * - Uploads image to Cloudinary when imageBuffer is provided; otherwise uses
  *   the default placeholder URL.
  * - For tenant_only offers, sets invitedByTenantId = createdByTenantId so
  *   visibility filtering works correctly.
  *
- * Input:  input - CreateOfferInput with raw_cost and optional image data.
+ * Input:  input - CreateOfferInput with optional image data.
  * Output: Promise resolving to the persisted NexusOffer document.
  * Throws: on Cloudinary failure or MongoDB write error.
  */
@@ -160,8 +125,6 @@ export async function createOffer(input: CreateOfferInput): Promise<NexusOffer> 
     description: input.description,
     imageUrl,
     category: input.category,
-    raw_cost: input.raw_cost,
-    nexus_price: computeNexusPrice(input.raw_cost),
     market_price: input.market_price,
     status: 'active',
     visibility: input.visibility,
@@ -191,7 +154,6 @@ export async function createOffer(input: CreateOfferInput): Promise<NexusOffer> 
  *
  * - Only the tenant that created the offer may update it (ownership enforced
  *   via the `createdByTenantId` filter in the MongoDB query).
- * - When raw_cost is present in the update, nexus_price is recomputed.
  * - When a new image buffer is provided, it is uploaded and the imageUrl
  *   field is replaced.
  *
@@ -223,10 +185,6 @@ export async function updateOffer(
     updatedAt: new Date(),
     ...(input.title !== undefined && { title: input.title }),
     ...(input.description !== undefined && { description: input.description }),
-    ...(input.raw_cost !== undefined && {
-      raw_cost: input.raw_cost,
-      nexus_price: computeNexusPrice(input.raw_cost),
-    }),
     ...(input.market_price !== undefined && { market_price: input.market_price }),
     ...(input.status !== undefined && { status: input.status }),
     ...(input.executionType !== undefined && { executionType: input.executionType }),

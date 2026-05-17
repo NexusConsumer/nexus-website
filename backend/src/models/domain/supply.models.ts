@@ -1,8 +1,8 @@
 /**
  * MongoDB schemas and TypeScript interfaces for NEXUS supply layer.
  * Build-mode: one Offer per product (no separate Variant documents yet).
- * raw_cost = what creator pays (stored, never returned to frontend).
- * nexus_price = raw_cost * 1.30 (30% platform margin, computed by backend).
+ * Pricing is represented only by optional market_price (display reference).
+ * No internal cost tracking at this stage.
  */
 import type { Db } from 'mongodb';
 import { z } from 'zod';
@@ -40,8 +40,7 @@ export type OfferExecutionType = typeof OFFER_EXECUTION_TYPES[number];
 
 /**
  * Platform-level catalog item created by tenant admins or supply managers.
- * raw_cost stored server-side only. nexus_price = raw_cost * 1.30.
- * NEVER return raw_cost in any API response.
+ * market_price is an optional display reference shown to members.
  */
 export const nexusOfferSchema = z.object({
   offerId: z.string().min(1),
@@ -49,8 +48,6 @@ export const nexusOfferSchema = z.object({
   description: z.string().max(10000).default(''),
   imageUrl: z.string().url().optional(),
   category: z.enum(OFFER_CATEGORIES),
-  raw_cost: z.number().positive(),
-  nexus_price: z.number().positive(),
   market_price: z.number().positive().optional(),
   status: z.enum(OFFER_STATUSES).default('active'),
   visibility: z.enum(OFFER_VISIBILITY).default('ecosystem'),
@@ -82,7 +79,6 @@ export type NexusOffer = z.infer<typeof nexusOfferSchema>;
 /**
  * Records that a tenant adopted a platform offer for their members.
  * adoptionStatus = active means visible to that tenant's members.
- * member_price = nexus_price in build mode (no margin/subsidy layer yet).
  */
 export const tenantOfferConfigSchema = z.object({
   configId: z.string().min(1),
