@@ -42,6 +42,7 @@ import {
   sendVoucherApprovalRequestEmail,
   sendVoucherApprovedEmail,
   sendVoucherDeniedEmail,
+  sendVoucherWithdrawnEmail,
   getConfiguredAdminEmails,
 } from '../services/voucher-approval-email.service';
 import { getIdentityDomainCollections } from '../models/domain/identity.models';
@@ -338,21 +339,22 @@ router.patch(
         return;
       }
 
-      const { offer, wasResubmitted } = result;
+      const { offer, wasResubmitted, wasUpdatedWhilePending } = result;
 
-      // When a denied offer is resubmitted, notify platform admins for re-review.
-      if (wasResubmitted) {
+      // Notify admins when a denied offer is resubmitted OR when a pending offer is updated.
+      // Both cases require admins to re-review; isUpdate distinguishes the subject line.
+      if (wasResubmitted || wasUpdatedWhilePending) {
         const adminEmails = getConfiguredAdminEmails();
         try {
           const db = await getMongoDb();
           const tenantCollections = getTenantDomainCollections(db);
           const tenantDoc = await tenantCollections.domainTenants.findOne({ tenantId: ctx.tenantId });
           const supplierName = tenantDoc?.organizationName ?? ctx.tenantId;
-          sendVoucherApprovalRequestEmail(adminEmails, offer, supplierName).catch((err) => {
-            console.error('[OFFERS] Resubmit approval-request email failed:', err);
+          sendVoucherApprovalRequestEmail(adminEmails, offer, supplierName, wasUpdatedWhilePending).catch((err) => {
+            console.error('[OFFERS] Approval-request email (update/resubmit) failed:', err);
           });
         } catch (err) {
-          console.error('[OFFERS] Could not resolve supplier name for resubmit email:', err);
+          console.error('[OFFERS] Could not resolve supplier name for update/resubmit email:', err);
         }
       }
 
@@ -521,7 +523,24 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const ctx = await resolveTenantContextWithPermission(req, 'supply.manage_offers');
-      await deleteOffer(req.params.offerId, ctx.tenantId, ctx.isPlatformAdmin ?? false);
+      const deletedOffer = await deleteOffer(req.params.offerId, ctx.tenantId, ctx.isPlatformAdmin ?? false);
+
+      // If the offer was pending admin review, notify them that it was withdrawn.
+      if (deletedOffer.status === 'pending_approval') {
+        const adminEmails = getConfiguredAdminEmails();
+        try {
+          const db = await getMongoDb();
+          const tenantCollections = getTenantDomainCollections(db);
+          const tenantDoc = await tenantCollections.domainTenants.findOne({ tenantId: ctx.tenantId });
+          const supplierName = tenantDoc?.organizationName ?? ctx.tenantId;
+          sendVoucherWithdrawnEmail(adminEmails, deletedOffer, supplierName).catch((err) => {
+            console.error('[OFFERS] Withdrawn email failed:', err);
+          });
+        } catch (err) {
+          console.error('[OFFERS] Could not resolve supplier name for withdrawn email:', err);
+        }
+      }
+
       res.json({ success: true });
     } catch (err) {
       next(err);

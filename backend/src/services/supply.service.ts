@@ -190,15 +190,17 @@ export async function createOffer(input: CreateOfferInput): Promise<NexusOffer> 
  *   offerId  - UUID of the offer to update.
  *   tenantId - MongoDB tenantId derived from server-side auth (ownership check).
  *   input    - UpdateOfferInput with the fields to change.
- * Output: Promise resolving to { offer, wasResubmitted } on success, or null when
- *         the offer does not exist or is not owned by tenantId.
+ * Output: Promise resolving to { offer, wasResubmitted, wasUpdatedWhilePending } on success,
+ *         or null when the offer does not exist or is not owned by tenantId.
+ *   wasResubmitted        - true when a denied offer was edited back into the approval queue.
+ *   wasUpdatedWhilePending - true when the offer was already pending_approval before this edit.
  * Throws: on Cloudinary failure or MongoDB write error.
  */
 export async function updateOffer(
   offerId: string,
   tenantId: string,
   input: UpdateOfferInput
-): Promise<{ offer: NexusOffer; wasResubmitted: boolean } | null> {
+): Promise<{ offer: NexusOffer; wasResubmitted: boolean; wasUpdatedWhilePending: boolean } | null> {
   const db = await getMongoDb();
   const { nexusOffers } = getSupplyDomainCollections(db);
 
@@ -207,8 +209,11 @@ export async function updateOffer(
   const currentOffer = await nexusOffers.findOne({ offerId, createdByTenantId: tenantId });
   if (!currentOffer) return null;
 
-  // When a denied offer is edited and saved, it automatically re-enters the approval queue.
+  // When a denied offer is edited and saved, it re-enters the approval queue.
   const wasResubmitted = currentOffer.status === 'denied';
+  // Track separately: offer was already waiting for approval when updated.
+  // Routes use this to re-notify admins with the latest offer details.
+  const wasUpdatedWhilePending = currentOffer.status === 'pending_approval';
 
   // Upload replacement image only when both buffer and filename are supplied.
   let imageUrl: string | undefined;
@@ -247,7 +252,7 @@ export async function updateOffer(
   );
 
   if (!result) return null;
-  return { offer: result, wasResubmitted };
+  return { offer: result, wasResubmitted, wasUpdatedWhilePending };
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +281,8 @@ export async function updateOffer(
  *   offerId         - UUID of the offer to delete.
  *   tenantId        - MongoDB tenantId of the requester (derived from server-side auth).
  *   isPlatformAdmin - When true, ownership check is skipped.
- * Output: Promise<void>.
+ * Output: Promise resolving to the offer document captured before soft-deletion.
+ *         Callers can inspect the returned offer (e.g. to check status for email triggers).
  * Throws: Error with status 404 when the offer is not found or the requester
  *         does not own it (and is not a platform admin).
  */
@@ -284,7 +290,7 @@ export async function deleteOffer(
   offerId: string,
   tenantId: string,
   isPlatformAdmin: boolean,
-): Promise<void> {
+): Promise<NexusOffer> {
   const db = await getMongoDb();
   const { nexusOffers, tenantOfferConfigs } = getSupplyDomainCollections(db);
 
@@ -309,6 +315,8 @@ export async function deleteOffer(
 
   // Cascade - remove every tenant's adoption record for this offer immediately.
   await tenantOfferConfigs.deleteMany({ offerId });
+
+  return offer;
 }
 
 // ---------------------------------------------------------------------------

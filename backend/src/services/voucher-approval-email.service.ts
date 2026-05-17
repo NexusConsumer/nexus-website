@@ -76,7 +76,8 @@ function buildPriceRow(label: string, value: string): string {
 
 /**
  * Sends a voucher approval-request email to every NEXUS platform admin.
- * Called when a supplier creates a new ecosystem voucher offer or resubmits after denial.
+ * Called when a supplier creates a new ecosystem voucher offer, resubmits after denial,
+ * or updates an offer that is already waiting for approval.
  *
  * The email includes nexus_cost so admins can evaluate supplier pricing before approving.
  * It is intentionally NOT sent to the supplier.
@@ -85,12 +86,14 @@ function buildPriceRow(label: string, value: string): string {
  *   adminEmails        - list of platform admin email addresses (from NEXUS_ADMIN_EMAILS).
  *   offer              - the NexusOffer awaiting approval.
  *   supplierTenantName - display name of the supplier's workspace.
+ *   isUpdate           - true when the offer was edited while already pending (changes subject + heading).
  * Output: Promise<void>. Errors are logged but do not throw so offer creation is not blocked.
  */
 export async function sendVoucherApprovalRequestEmail(
   adminEmails: string[],
   offer: NexusOffer,
   supplierTenantName: string,
+  isUpdate = false,
 ): Promise<void> {
   if (adminEmails.length === 0) {
     console.warn('[VOUCHER-APPROVAL] No admin emails configured - skipping approval request email');
@@ -100,6 +103,22 @@ export async function sendVoucherApprovalRequestEmail(
   const bannerHtml = buildAuthEmailBannerHtml();
   const offerTitle = escapeHtml(offer.title);
   const tenantName = escapeHtml(supplierTenantName);
+
+  const headingHe = isUpdate
+    ? 'הצעת שובר עודכנה – ממתינה לאישורך'
+    : 'הצעת שובר חדשה ממתינה לאישור';
+  const headingEn = isUpdate
+    ? 'Voucher offer updated — awaiting re-approval'
+    : 'New voucher offer awaiting approval';
+  const bodyHe = isUpdate
+    ? `הספק <strong>${tenantName}</strong> עדכן הצעת שובר שעדיין ממתינה לאישורך. הפרטים המעודכנים מוצגים למטה.`
+    : `הספק <strong>${tenantName}</strong> שלח הצעת שובר חדשה שדורשת את אישורך לפני פרסום בפלטפורמה.`;
+  const bodyEn = isUpdate
+    ? `Supplier <strong>${tenantName}</strong> updated a voucher offer that is still pending your approval. Updated details are shown below.`
+    : `Supplier <strong>${tenantName}</strong> submitted a new voucher offer for your review.`;
+  const subjectPrefix = isUpdate
+    ? 'הצעת שובר עודכנה'
+    : 'הצעת שובר חדשה ממתינה לאישור';
 
   const pricingRows = [
     offer.face_value !== undefined ? buildPriceRow('ערך נקוב / Face value', formatShekel(offer.face_value)) : '',
@@ -118,14 +137,10 @@ export async function sendVoucherApprovalRequestEmail(
 <table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:14px;padding:40px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
 <tr><td align="center">
   ${bannerHtml}
-  <h1 style="margin:0;color:#111;font-size:24px;">הצעת שובר חדשה ממתינה לאישור</h1>
-  <p style="color:#888;font-size:13px;margin-top:4px;">New voucher offer awaiting approval</p>
-  <p style="margin:18px 0 8px 0;color:#555;font-size:15px;line-height:1.6;">
-    הספק <strong>${tenantName}</strong> שלח הצעת שובר חדשה שדורשת את אישורך לפני פרסום בפלטפורמה.
-  </p>
-  <p style="color:#888;font-size:13px;">
-    Supplier <strong>${tenantName}</strong> submitted a new voucher offer for your review.
-  </p>
+  <h1 style="margin:0;color:#111;font-size:24px;">${headingHe}</h1>
+  <p style="color:#888;font-size:13px;margin-top:4px;">${headingEn}</p>
+  <p style="margin:18px 0 8px 0;color:#555;font-size:15px;line-height:1.6;">${bodyHe}</p>
+  <p style="color:#888;font-size:13px;">${bodyEn}</p>
 </td></tr>
 <tr><td style="padding:16px 0;">
   <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px;">
@@ -158,7 +173,7 @@ export async function sendVoucherApprovalRequestEmail(
     try {
       await sendMail({
         to: adminEmail,
-        subject: `הצעת שובר חדשה ממתינה לאישור - ${offer.title}`,
+        subject: `${subjectPrefix} - ${offer.title}`,
         html,
         text,
         _label: 'VOUCHER-APPROVAL-REQUEST',
@@ -315,6 +330,72 @@ export async function sendVoucherDeniedEmail(
     });
   } catch (err) {
     console.error(`[VOUCHER-APPROVAL] Failed to send denied email to ${to}:`, err);
+  }
+}
+
+/**
+ * Sends a withdrawal notification to every NEXUS platform admin.
+ * Called when a supplier deletes an offer that was still in pending_approval status.
+ * Lets admins know they no longer need to review it.
+ *
+ * Input:
+ *   adminEmails        - list of platform admin email addresses (from NEXUS_ADMIN_EMAILS).
+ *   offer              - the deleted NexusOffer (captured before soft-delete).
+ *   supplierTenantName - display name of the supplier's workspace.
+ * Output: Promise<void>. Errors are logged but do not throw.
+ */
+export async function sendVoucherWithdrawnEmail(
+  adminEmails: string[],
+  offer: NexusOffer,
+  supplierTenantName: string,
+): Promise<void> {
+  if (adminEmails.length === 0) return;
+
+  const bannerHtml = buildAuthEmailBannerHtml();
+  const offerTitle = escapeHtml(offer.title);
+  const tenantName = escapeHtml(supplierTenantName);
+
+  const html = `<!doctype html>
+<html lang="he" dir="rtl">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;direction:rtl;">
+<table width="100%" cellpadding="0" cellspacing="0">
+<tr><td align="center" style="padding:40px 20px;">
+<table width="560" cellpadding="0" cellspacing="0" style="background:white;border-radius:14px;padding:40px;box-shadow:0 10px 30px rgba(0,0,0,0.06);">
+<tr><td align="center">
+  ${bannerHtml}
+  <h1 style="margin:0;color:#64748b;font-size:22px;">הצעת שובר בוטלה לפני אישור</h1>
+  <p style="color:#888;font-size:13px;margin-top:4px;">Voucher offer withdrawn before review</p>
+  <p style="margin:18px 0 8px 0;color:#555;font-size:15px;line-height:1.6;">
+    הספק <strong>${tenantName}</strong> מחק את הצעת השובר <strong>"${offerTitle}"</strong>
+    לפני שנסקרה. אין צורך בפעולה מצדך.
+  </p>
+  <p style="color:#888;font-size:13px;line-height:1.6;">
+    Supplier <strong>${tenantName}</strong> deleted the voucher offer <strong>"${offerTitle}"</strong>
+    before it was reviewed. No action is required on your part.
+  </p>
+  <p style="color:#bbb;font-size:12px;margin-top:20px;">מספר הצעה: ${escapeHtml(offer.offerId)}</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+
+  const text = `הצעת שובר בוטלה לפני אישור\nVoucher offer withdrawn: "${offer.title}" (by ${supplierTenantName})\nOffer ID: ${offer.offerId}\nNo action required.`;
+
+  for (const adminEmail of adminEmails) {
+    try {
+      await sendMail({
+        to: adminEmail,
+        subject: `הצעת שובר בוטלה - ${offer.title}`,
+        html,
+        text,
+        _label: 'VOUCHER-WITHDRAWN',
+      });
+    } catch (err) {
+      console.error(`[VOUCHER-APPROVAL] Failed to send withdrawn email to ${adminEmail}:`, err);
+    }
   }
 }
 
