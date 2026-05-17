@@ -6,6 +6,13 @@ import type { Collection, Db, ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { DOMAIN_COLLECTIONS } from './collections';
 
+/**
+ * Default services granted to new members when no explicit services list is provided.
+ * Used as the fallback in TenantMember and TenantMemberInvitation schemas and
+ * as the runtime default when reading pre-Task-08 member documents.
+ */
+export const DEFAULT_MEMBER_SERVICES = ['benefits_catalog'] as const;
+
 export const TENANT_CONTACT_STATUSES = ['active', 'inactive', 'pending', 'expired'] as const;
 export type TenantContactStatus = typeof TENANT_CONTACT_STATUSES[number];
 
@@ -35,7 +42,7 @@ export const SERVICE_KEYS = ['benefits_catalog', 'provider_service', 'digital_wa
 export const SERVICE_ACTIVATION_STATUSES = ['inactive', 'pending_review', 'active', 'suspended'] as const;
 export const MEMBER_GROUP_TYPES = ['static', 'dynamic'] as const;
 export const CATALOG_ADOPTION_MODES = ['auto_silent', 'auto_notify', 'manual'] as const;
-export const DEFAULT_PRICING_RULES = ['nexus_price', 'inherit_selection', 'manual_required'] as const;
+export const DEFAULT_PRICING_RULES = ['inherit_selection', 'manual_required'] as const;
 export const TENANT_MEMBER_INVITATION_STATUSES = ['pending', 'accepted', 'expired', 'revoked'] as const;
 
 export type TenantDomainStatus = typeof TENANT_STATUSES[number];
@@ -100,6 +107,11 @@ export const tenantMemberDomainSchema = z.object({
   employmentStartDate: z.date().optional(),
   requireAdminApproval: z.boolean().default(false),
   customFields: z.record(z.unknown()).default({}),
+  /**
+   * Services this member was granted access to at invite time.
+   * Defaults to DEFAULT_MEMBER_SERVICES for backwards compatibility with pre-Task-08 records.
+   */
+  services: z.array(z.string()).default([...DEFAULT_MEMBER_SERVICES]),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -131,6 +143,12 @@ export const tenantMemberInvitationSchema = z.object({
   normalizedEmail: z.string().email(),
   roles: z.array(z.string().min(1).max(100)).min(1),
   groupIds: z.array(z.string().min(1)).default([]),
+  /**
+   * Services explicitly granted when this invitation was created.
+   * Used to determine which features the member can access after accepting.
+   * Defaults to DEFAULT_MEMBER_SERVICES for backwards compatibility.
+   */
+  services: z.array(z.string()).default([...DEFAULT_MEMBER_SERVICES]),
   tokenHash: z.string().min(64).max(64),
   status: z.enum(TENANT_MEMBER_INVITATION_STATUSES),
   invitedByIdentityId: z.string().min(1),

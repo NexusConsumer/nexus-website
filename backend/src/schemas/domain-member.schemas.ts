@@ -15,6 +15,12 @@ export const inviteTenantMemberSchema = z.object({
   groupIds: z.array(z.string().min(1)).default([]),
   employeeId: z.string().trim().min(1).max(100).optional(),
   customFields: z.record(z.unknown()).default({}),
+  /**
+   * Services granted to this member at invite time.
+   * Controls which product features the member can access after accepting.
+   * Defaults to benefits_catalog so existing callers that omit this field keep catalog access.
+   */
+  services: z.array(z.string()).default(['benefits_catalog']),
   language: inviteLanguageSchema,
   sendEmail: z.boolean().default(true),
 });
